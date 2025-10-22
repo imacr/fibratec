@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './Unidades.CSS'; // Asegúrate de importar los estilos que proporcionaste
 import RegistrarUsuario from "./RegistrarUsuario";
+import { API_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const Usuarios = () => {
   const [usuarios, setUsuarios] = useState([]);
@@ -25,7 +26,7 @@ const Usuarios = () => {
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
-        const response = await fetch('http://192.168.254.158:5000/api/usuarios', {
+        const response = await fetch(`${API_URL}/api/usuarios`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -58,7 +59,9 @@ const Usuarios = () => {
   return (
     <div className="unidades-container">
         
+ 
       <h1><i class="fa-solid fa-users-gear"></i> Usuarios</h1>
+     <div className="pagination-controls">
       <label>
         Mostrar:
         <select
@@ -73,13 +76,15 @@ const Usuarios = () => {
             ))}
         </select>
         </label>
-
-    <button onClick={() => setShowModal(true)}>Registrar Usuario</button>
+        
+    <button className="btn-registrar-garantia"onClick={() => setShowModal(true)}>Registrar Usuario</button>
     <RegistrarUsuario
         show={showModal}
         onClose={() => setShowModal(false)}
         onCreate={agregarUsuario}
       />
+
+      </div>
       <div className="table-wrapper">
         <table className="elegant-table">
           <thead>
@@ -153,7 +158,7 @@ const Usuarios = () => {
     <div className="pagination">
     <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Anterior</button>
     <span>Página {currentPage} de {totalPages}</span>
-    <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Siguiente</button>
+    <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}><i class="fa-solid fa-arrow-right"></i></button>
     </div>
 
 

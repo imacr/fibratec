@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import styles from '../components/Login.module.css'; // 1. Reutilizamos los estilos del Login
 import logo from '../assets/fibra.png';  // Usamos el mismo logo
+import { API_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const ResetPassword = () => {
   const { token } = useParams();
@@ -27,7 +28,7 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`http://192.168.254.158:5000/reset-password/${token}`, {
+      const res = await fetch(`${API_URL}/reset-password/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),

@@ -1,11 +1,11 @@
 /* Contenedor principal: Fondo Blanco Suave */
-.garantias-container {
+.garantias-container{
     padding: 20px;
     background-color: #f8f8f8; 
     font-family: Arial, sans-serif; /* Fuente limpia y moderna */
+
     /* Se elimina align-items: center; ya que no es un flex/grid contenedor raíz */
 }
-
 /* Título: Negro con línea roja de énfasis */
 .garantias-container h1 {
     color: #212529; /* Negro Profundo */
@@ -13,4 +13,27 @@
     border-bottom: 1px solid #dc3545; /* Toque Rojo Sutil */
     padding-bottom: 10px;
     font-size: 1.8rem; /* Tamaño de fuente reducido */
+}
+
+/* Mostrar siempre por defecto */
+.col-chofer {
+    display: table-cell;
+}
+
+/* Ocultar en pantallas más pequeñas (ejemplo: menores de 1366px o lo que necesites) */
+@media (max-width: 1500px) {
+    .col-chofer {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .unidades-container .table-wrapper {
+        display: none;
+    }
+    .card-wrapper {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
 }

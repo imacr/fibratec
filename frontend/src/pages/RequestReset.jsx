@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import styles from '../components/Login.module.css'; // 1. Reutilizamos los mismos estilos del Login
 import logo from '../assets/fibra.png';  // Reutilizamos el logo para consistencia
+import { API_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const RequestReset = () => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false); // 2. Añadimos estados de carga y error
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -17,7 +17,7 @@ const RequestReset = () => {
 
     // 3. Envolvemos la petición en try/catch para manejar errores de red
     try {
-      const res = await fetch("http://192.168.254.158:5000/request-reset", {
+      const res = await fetch(`${API_URL}/request-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

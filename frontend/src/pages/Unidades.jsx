@@ -6,6 +6,7 @@ import Modal from '../components/Modal'; // Ajusta la ruta según tu estructura
 import '../../src/App.css';
 import './Unidades.css';
 import seces from '../assets/image.png';
+import { BASE_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const Unidades = () => {
   const [unidades, setUnidades] = useState([]);
@@ -19,7 +20,8 @@ const Unidades = () => {
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const MySwal = withReactContent(Swal);
-  const API_URL = "http://192.168.254.158:5000/api/unidades";
+  
+  const API_URL = `${BASE_URL}/api/unidades`;
 
 //----------------------------------------------------------------------------------
 //estado para nueva unidad
@@ -269,21 +271,21 @@ const handleAgregarUnidad = async (e) => {
       <h1><i className="fa-solid fa-car-side"></i> Unidades</h1>
 
       <div className="pagination-controls">
-        <label>
-          Mostrar:
-          <select
-            value={itemsPerPage}
-            onChange={e => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-          >
-            {itemsPerPageOptions.map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        </label>
-        <button className="btn-open-modal" onClick={() => { setShowModal(true);
+          <label className='pagination-label'>
+            Mostrar:
+            <select className="pagination-select"
+              value={itemsPerPage}
+              onChange={e => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              {itemsPerPageOptions.map(opt => (
+                <option className='' key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </label>
+        <button  className="btn-open-modal btn-registrar-garantia" onClick={() => { setShowModal(true);
             setUnidadToEdit(null);  // Para abrir en modo "Agregar"
             setNuevaUnidad({});     // Inicializa campos vacíos para agregar
             setModalData(null);     // Limpia detalles
@@ -388,9 +390,9 @@ const handleAgregarUnidad = async (e) => {
 
       {/* Paginación */}
       <div className="pagination">
-        <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Anterior</button>
+        <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}><i class="fa-solid fa-arrow-left"></i></button>
         <span>Página {currentPage} de {totalPages}</span>
-        <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Siguiente</button>
+        <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}><i class="fa-solid fa-arrow-right"></i></button>
       </div>
 
 

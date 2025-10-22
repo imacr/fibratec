@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import Modal from "../components/Modal";
+import { BASE_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const RegistrarUsuario = ({ show, onClose, onCreate }) => {
-  const API_URL ="http://192.168.254.158:5000/api/usuarios"
+  const API_URL = `${BASE_URL}/api/usuarios`;
   const [formData, setFormData] = useState({
     nombre: "",
     usuario: "",

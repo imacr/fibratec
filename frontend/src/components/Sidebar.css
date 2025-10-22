@@ -1,6 +1,7 @@
 /* Sidebar general */
 .sidebar {
   background: #000; /* Fondo negro */
+    position: fixed;
   color: white;
   padding: 20px;
   display: flex;
@@ -23,7 +24,7 @@
 /* Sidebar móvil: sobre contenido */
 @media (max-width: 767px) {
   .sidebar {
-    position: fixed;
+    
     top: 0;
     left: -200px;
     width: 200px;
@@ -82,58 +83,82 @@
   font-size: 22px;
   cursor: pointer;
 }
-
-/* Menú */
+/* --- Contenedor Principal del Menú --- */
 .sidebar-menu {
-  padding-top: 40px;
+  padding-top: 5px; /* Mínimo espacio superior */
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0; /* Sin espacio entre elementos */
 }
 
+/* --- Estilo General de los Enlaces (ULTRA COMPACTO) --- */
 .sidebar-menu a {
-  color: white;
+  color: var(--text-secondary);
   text-decoration: none;
-  padding: 1px 10px;
-  font-size: 18px;
+  font-size: 0.85rem; /* Fuente muy pequeña (13.6px) */
+  padding: 4px 7px; /* Padding mínimo con píxeles */
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 8px;
-  transition: all 0.2s;
+  gap: 8px; /* Espacio mínimo con píxeles */
+  border-radius: 3px;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
+/* --- Estilo de los Íconos --- */
 .sidebar-menu a i {
-  color: #e53935; /* Iconos rojos */
+  color: rgb(198, 191, 191);
+  width: 16px; /* Ancho ajustado */
+  text-align: center;
+  font-size: 0.9rem; /* Iconos más pequeños */
+  transition: color var(--transition-speed);
 }
 
-/* Hover */
+/* --- Efecto Hover (al pasar el mouse) --- */
 .sidebar-menu a:hover {
-  background: #e53935;
-  color: white;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  height: auto;
 }
-
 .sidebar-menu a:hover i {
-  color: white; /* Icono también blanco al pasar hover */
+  color: red;
 }
 
-/* Activo */
+/* --- Efecto Activo (para la página actual) --- */
 .sidebar-menu a.active {
-  background: #e53935;
-  color: white;
+  background: rgb(237, 234, 234) ;
+  color: #060606;
+  font-weight: 500;
 }
-
 .sidebar-menu a.active i {
-  color: white; /* Icono blanco cuando la ruta está activa */
+  color: red;
+  background-color: antiquewhite;
 }
 
+/* --- Estilo del Submenú (ULTRA COMPACTO) --- */
 .submenu {
-  margin-top: 5px;
-  display: flex;
-  flex-direction: column;
-  padding-left: 20px; /* sangría a la derecha */
+  margin: 0 0 2px 0; /* Sin margen superior */
+  padding-left: 1rem; /* Indentación mínima */
+  border-left: 2px solid var(--bg-secondary);
+  margin-left: 8px; /* Alineación con el icono */
+  background-color: rgba(75, 74, 74, 0.758);
 }
 
 .submenu a {
-  padding-left: 5px; /* sangría interna para cada link */
+  font-size: 0.8rem; /* Fuente de sub-item casi al mínimo legible (12.8px) */
+  padding: 3px 6px; /* Padding de sub-item mínimo */
+}
+
+/* --- [CORREGIDO] Efecto Hover para el Submenú --- */
+.submenu a:hover {
+  background: rgb(254, 251, 251); /* Añade fondo sutil */
+  color: black;      /* Cambia el texto a blanco brillante */
+}
+
+.notification-badge {
+  background: red;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  margin-left: 5px;
 }

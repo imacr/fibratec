@@ -144,6 +144,17 @@
     transform: none;
 }
 
+/* Para ocultar el botón de mostrar contraseña nativo */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none;
+}
+
+input[type="password"]::-webkit-outer-spin-button,
+input[type="password"]::-webkit-inner-spin-button {
+    display: none;
+}
+
 @keyframes fadeInCard {
     from {
         opacity: 0;

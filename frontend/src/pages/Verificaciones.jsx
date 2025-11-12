@@ -2,36 +2,39 @@ import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import "./Unidades.css";
 import { API_URL } from "../config";
+import ModalFile from "../components/ModalFile"; // importa tu modal
 
-// Meses por engomado (igual que backend)
+
+// Meses por engomado (solo fallback)
 const MESES_ENGOMADO = {
   primer_semestre: { amarillo: [1, 2], rosa: [2, 3], rojo: [3, 4], verde: [4, 5], azul: [5, 6] },
   segundo_semestre: { amarillo: [7, 8], rosa: [8, 9], rojo: [9, 10], verde: [10, 11], azul: [11, 12] }
 };
 
-// Función para obtener último día del mes
 const ultimoDiaMes = (año, mes) => new Date(año, mes, 0).getDate();
 
-// Calcula fecha sugerida según engomado, periodo y año
 const calcularFechaPorEngomado = (periodo, engomado, año) => {
   if (!engomado) return "";
-
   let meses = [];
   if (periodo === "1") meses = MESES_ENGOMADO.primer_semestre[engomado.toLowerCase()] || [];
   else if (periodo === "2") meses = MESES_ENGOMADO.segundo_semestre[engomado.toLowerCase()] || [];
-
   if (meses.length === 0) return "";
-
   const ultimoMes = Math.max(...meses);
   const ultimoDia = ultimoDiaMes(año, ultimoMes);
   return new Date(año, ultimoMes - 1, ultimoDia).toISOString().split("T")[0];
 };
 
+const calcularInicioPeriodo = (fechaSugerida) => {
+  if (!fechaSugerida) return null;
+  const fecha = new Date(fechaSugerida);
+  fecha.setMonth(fecha.getMonth() - 2); // restar 2 meses
+  return fecha;
+};
+
+useEffect
 const Verificaciones = () => {
   const [verificaciones, setVerificaciones] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Formulario
   const [idUnidad, setIdUnidad] = useState("");
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState("1");
   const [periodoReal, setPeriodoReal] = useState("");
@@ -42,20 +45,17 @@ const Verificaciones = () => {
   const [placa, setPlaca] = useState("");
   const [archivo, setArchivo] = useState(null);
 
-  // Año anterior
   const añoActual = new Date().getFullYear();
   const ultimos3Años = [añoActual, añoActual - 1, añoActual - 2];
   const [usarAñoAnterior, setUsarAñoAnterior] = useState(false);
   const [añoSeleccionado, setAñoSeleccionado] = useState(añoActual);
 
-  // Estados de comportamiento
   const [unidadExiste, setUnidadExiste] = useState(false);
   const [verificacionExistente, setVerificacionExistente] = useState(null);
   const [checkingUnidad, setCheckingUnidad] = useState(false);
   const [formDisabled, setFormDisabled] = useState(false);
+  const [modalUrl, setModalUrl] = useState(null);
 
-  // -------------------------------------------
-  // FUNCIONES
 
   const obtenerVerificaciones = async () => {
     try {
@@ -82,61 +82,127 @@ const Verificaciones = () => {
     }
   };
 
-  const checkUnidadLocal = async () => {
-    if (!idUnidad) {
-      setUnidadExiste(false);
-      setVerificacionExistente(null);
-      setEngomado("");
-      setPlaca("");
+const checkUnidadLocal = async () => {
+  if (!idUnidad) {
+    setUnidadExiste(false);
+    setVerificacionExistente(null);
+    setEngomado("");
+    setPlaca("");
+    setFechaSugerida("");
+    setFormDisabled(false);
+    return;
+  }
+
+  setCheckingUnidad(true);
+FormData
+  try {
+    const res = await fetch(`${API_URL}/api/unidad/${idUnidad}`);
+    if (!res.ok) throw new Error("Unidad no encontrada");
+    const data = await res.json();
+
+    setPlaca(data.placa || "");
+    setEngomado(data.engomado || "");
+
+    const añoRegistro = usarAñoAnterior ? añoSeleccionado : añoActual;
+
+    // 🔹 Buscar verificación del año registrado
+    const found = verificaciones.find(v =>
+      String(v.id_unidad) === String(idUnidad) &&
+      ((v.periodo_1 && new Date(v.periodo_1).getFullYear() === añoRegistro) ||
+       (v.periodo_2 && new Date(v.periodo_2).getFullYear() === añoRegistro))
+    );
+
+    // 🔹 Bloqueo por holograma 00 vigente (cualquier año)
+    const holograma00 = verificaciones.find(v =>
+      String(v.id_unidad) === String(idUnidad) &&
+      v.holograma === "00" &&
+      v.proxima_verificacion &&
+      new Date(v.proxima_verificacion) > new Date()
+    );
+
+    if (holograma00) {
+      setUnidadExiste(true);
+      setVerificacionExistente(holograma00);
+      setHolograma("00");
+      setFormDisabled(true);
+      setPeriodoSeleccionado("1");
+      setFechaSugerida(new Date(holograma00.proxima_verificacion).toISOString().split("T")[0]);
+
+      Swal.fire({
+        icon: "info",
+        title: "Holograma 00 vigente",
+        text: `No se puede registrar un nuevo periodo. Holograma 00 vigente hasta ${new Date(holograma00.proxima_verificacion).toLocaleDateString()}.`,
+        timer: 4000,
+        showConfirmButton: false
+      });
       return;
     }
-    setCheckingUnidad(true);
 
-    try {
-      const res = await fetch(`${API_URL}/api/unidad/${idUnidad}`);
-      if (!res.ok) throw new Error("Unidad no encontrada");
-      const data = await res.json();
-
-      setPlaca(data.placa || "");
-      setEngomado(data.engomado || "");
-
-      const found = verificaciones.find(v => String(v.id_unidad) === String(idUnidad));
-      if (found) {
-        setUnidadExiste(true);
-        setVerificacionExistente(found);
-        setHolograma(found.holograma || "");
-        setFolio(found.folio_verificacion || "");
-        setFormDisabled(found.periodo_1 && found.periodo_2);
-
-        // 🔹 Selección automática del periodo 2 si ya existe el 1
-        if (found.periodo_1 && !found.periodo_2) {
-          setPeriodoSeleccionado("2");
-          Swal.fire({
-            icon: "info",
-            title: "Aviso",
-            text: "El periodo 1 ya está registrado. Se seleccionó automáticamente el periodo 2.",
-            timer: 2500,
-            showConfirmButton: false
-          });
-        }
-
-      } else {
-        setUnidadExiste(false);
-        setVerificacionExistente(null);
-        setFormDisabled(false);
-      }
-
-    } catch (err) {
-      console.error(err);
-      Swal.fire({ icon: "error", title: "Error", text: "No se encontró la unidad." });
-      setEngomado("");
-      setPlaca("");
+    if (!found) {
       setUnidadExiste(false);
       setVerificacionExistente(null);
-    } finally {
-      setCheckingUnidad(false);
+      setFormDisabled(false);
+      setFechaSugerida("");
+      Swal.fire({
+        icon: "info",
+        title: "Automóvil sin registro",
+        text: `Puedes ingresar un nuevo periodo para el año ${añoRegistro}.`,
+        timer: 3000,
+        showConfirmButton: false
+      });
+      return;
     }
-  };
+
+    // Unidad con verificación del año seleccionado
+    setUnidadExiste(true);
+    setVerificacionExistente(found);
+    setHolograma(found.holograma || "");
+    setFolio(found.folio_verificacion || "");
+
+    let bloquear = false;
+
+    if (found.periodo_1 && found.periodo_2) {
+      bloquear = true;
+      setFormDisabled(true);
+      const vigencia = found.proxima_verificacion ? new Date(found.proxima_verificacion) : null;
+      Swal.fire({
+        icon: "info",
+        title: "Periodos completos",
+        text: `Esta unidad ya tiene ambos periodos registrados para el año ${añoRegistro}.${vigencia ? ` Vigencia hasta: ${vigencia.toLocaleDateString()}` : ""}`,
+        timer: 4000,
+        showConfirmButton: false
+      });
+    } else if (found.periodo_1 && !found.periodo_2) {
+      setPeriodoSeleccionado("2");
+      Swal.fire({
+        icon: "info",
+        title: "Aviso",
+        text: "El periodo 1 ya está registrado. Se seleccionó automáticamente el periodo 2.",
+        timer: 2500,
+        showConfirmButton: false
+      });
+    } else if (!found.periodo_1 && found.periodo_2) {
+      setPeriodoSeleccionado("1");
+    } else {
+      setPeriodoSeleccionado("1");
+    }
+
+    setFormDisabled(bloquear);
+
+  } catch (err) {
+    console.error(err);
+    Swal.fire({ icon: "error", title: "Error", text: "No se encontró la unidad." });
+    setEngomado("");
+    setPlaca("");
+    setUnidadExiste(false);
+    setVerificacionExistente(null);
+    setFechaSugerida("");
+    setFormDisabled(false);
+  } finally {
+    setCheckingUnidad(false);
+  }
+};
+
 
   const handleIdBlur = () => checkUnidadLocal();
   const handleFileChange = (e) => setArchivo(e.target.files[0] ?? null);
@@ -161,25 +227,27 @@ const Verificaciones = () => {
   // Actualiza fecha sugerida y real editable
   useEffect(() => {
     const año = usarAñoAnterior ? añoSeleccionado : añoActual;
-    const sugerida = calcularFechaPorEngomado(periodoSeleccionado, engomado, año);
-    setFechaSugerida(sugerida);
-
     if (verificacionExistente) {
       const fechaExistente = periodoSeleccionado === "1" ? verificacionExistente.periodo_1_real : verificacionExistente.periodo_2_real;
-      setPeriodoReal(fechaExistente || sugerida);
+      const vigencia = verificacionExistente.proxima_verificacion ? new Date(verificacionExistente.proxima_verificacion) : null;
+      setFechaSugerida(vigencia ? vigencia.toISOString().split("T")[0] : calcularFechaPorEngomado(periodoSeleccionado, engomado, año));
+      setPeriodoReal(fechaExistente || (vigencia ? vigencia.toISOString().split("T")[0] : calcularFechaPorEngomado(periodoSeleccionado, engomado, año)));
     } else {
-      setPeriodoReal(sugerida);
+      setFechaSugerida(calcularFechaPorEngomado(periodoSeleccionado, engomado, año));
+      setPeriodoReal(calcularFechaPorEngomado(periodoSeleccionado, engomado, año));
     }
   }, [periodoSeleccionado, engomado, verificacionExistente, usarAñoAnterior, añoSeleccionado]);
 
-  // -------------------------------------------
-  // SUBMIT
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formDisabled) return;
 
     if (!idUnidad) return Swal.fire({ icon: "warning", title: "ID requerido", text: "Indica el ID de la unidad." });
     if (!archivo) return Swal.fire({ icon: "warning", title: "Archivo requerido", text: "Debes seleccionar un PDF." });
+
+    if (fechaSugerida && new Date(periodoReal) > new Date(fechaSugerida)) {
+      return Swal.fire({ icon: "warning", title: "Fecha inválida", text: "La fecha real no puede superar la fecha límite." });
+    }
 
     const formData = new FormData();
     formData.append("id_unidad", idUnidad);
@@ -211,8 +279,6 @@ const Verificaciones = () => {
 
   if (loading) return <p className="text-center mt-5 fw-bold">Cargando verificaciones...</p>;
 
-  // -------------------------------------------
-  // RENDER
   return (
     <div className="unidades-container mt-4">
       <h2 className="text-center mb-3 text-danger fw-bold">Verificaciones Vehiculares</h2>
@@ -236,7 +302,7 @@ const Verificaciones = () => {
 
           {formDisabled && (
             <div className="alert alert-info py-1">
-              Esta unidad ya tiene registradas las 2 verificaciones. Selecciona otra unidad para registrar.
+              Esta unidad no puede registrar otro periodo todavía.
             </div>
           )}
 
@@ -245,27 +311,23 @@ const Verificaciones = () => {
 
           {!formDisabled && (
             <>
-              {/* Selección de periodo y año */}
               <div className="d-flex gap-2 align-items-center">
-              <select 
-                className="form-select" 
-                value={periodoSeleccionado} 
-                onChange={(e) => setPeriodoSeleccionado(e.target.value)}
-              >
-                <option value="1" disabled={verificacionExistente?.periodo_1}>Periodo 1</option>
-                <option value="2" disabled={verificacionExistente?.periodo_2}>Periodo 2</option>
-              </select>
-
-              <label className="mb-0">Año anterior</label>
-              <input type="checkbox" checked={usarAñoAnterior} onChange={(e) => setUsarAñoAnterior(e.target.checked)} />
-              {usarAñoAnterior && (
-                <select className="form-select" value={añoSeleccionado} onChange={(e) => setAñoSeleccionado(parseInt(e.target.value))}>
-                  {ultimos3Años.map(año => <option key={año} value={año}>{año}</option>)}
+                <select className="form-select" value={periodoSeleccionado} onChange={(e) => setPeriodoSeleccionado(e.target.value)}>
+                  <option value="1" disabled={verificacionExistente?.periodo_1}>Periodo 1</option>
+                  <option value="2" disabled={verificacionExistente?.periodo_2 || (verificacionExistente?.holograma === "00" && new Date() < new Date(fechaSugerida))}>
+                    Periodo 2
+                  </option>
                 </select>
-              )}
-            </div>
 
-              {/* Fechas */}
+                <label className="mb-0">Año anterior</label>
+                <input type="checkbox" checked={usarAñoAnterior} onChange={(e) => setUsarAñoAnterior(e.target.checked)} />
+                {usarAñoAnterior && (
+                  <select className="form-select" value={añoSeleccionado} onChange={(e) => setAñoSeleccionado(parseInt(e.target.value))}>
+                    {ultimos3Años.map(año => <option key={año} value={año}>{año}</option>)}
+                  </select>
+                )}
+              </div>
+
               <div className="d-flex gap-2 align-items-center">
                 <label className="mb-0">Fecha límite sugerida</label>
                 <input type="date" value={fechaSugerida} readOnly className="form-control" />
@@ -279,7 +341,7 @@ const Verificaciones = () => {
               <input type="file" accept="application/pdf" onChange={handleFileChange} required />
 
               <div className="d-flex gap-2">
-                <button type="submit" className="btn btn-danger fw-bold">📄 Registrar Verificación</button>
+                <button type="submit" className="btn btn-danger fw-bold" disabled={formDisabled}>📄 Registrar Verificación</button>
                 <button type="button" className="btn btn-outline-secondary" onClick={resetForm}>Limpiar</button>
               </div>
             </>
@@ -287,11 +349,12 @@ const Verificaciones = () => {
         </form>
       </div>
 
+      {/* Tabla de verificaciones */}
       <div className="table-responsive shadow rounded">
         <table className="elegant-table">
           <thead className="table-dark text-center">
             <tr>
-              <th>ID</th><th>Unidad</th><th>Placa</th><th>Modelo</th><th>Última</th>
+              <th>ID</th><th>ID un</th><th>Unidad</th><th>Placa</th><th>Modelo</th><th>Última</th>
               <th>Periodo 1</th><th>Real 1</th><th>URL 1</th>
               <th>Periodo 2</th><th>Real 2</th><th>URL 2</th>
               <th>Holograma</th><th>Folio</th><th>Engomado</th>
@@ -306,35 +369,45 @@ const Verificaciones = () => {
                 v.estado_verificacion === "PENDIENTE" ? "table-warning" : ""
               }>
                 <td>{v.id_verificacion}</td>
+                <td>{v.id_unidad}</td>
                 <td>{v.marca} {v.vehiculo}</td>
                 <td>{v.placa}</td>
                 <td>{v.modelo}</td>
                 <td>{v.ultima_verificacion}</td>
                 <td>{v.periodo_1}</td>
                 <td>{v.periodo_1_real}</td>
-                <td>{v.url_verificacion_1 ? <a href={v.url_verificacion_1} target="_blank" rel="noopener noreferrer" className="text-danger fw-bold">📄 Ver 1</a> : "—"}</td>
+                <td>
+                  {v.url_verificacion_1 ? (
+                    <button
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={() => setModalUrl(`${API_URL}/${v.url_verificacion_1}`)}
+                    >
+                      Ver PDF
+                    </button>
+                  ) : ""}
+                </td>
                 <td>{v.periodo_2}</td>
                 <td>{v.periodo_2_real}</td>
-                <td>{v.url_verificacion_2 ? <a href={v.url_verificacion_2} target="_blank" rel="noopener noreferrer" className="text-danger fw-bold">📄 Ver 2</a> : "—"}</td>
+                <td>
+                  {v.url_verificacion_2 ? (
+                    <button
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={() => setModalUrl(`${API_URL}/${v.url_verificacion_2}`)}
+                    >
+                      Ver PDF
+                    </button>
+                  ) : ""}
+                </td>
                 <td>{v.holograma}</td>
                 <td>{v.folio_verificacion}</td>
                 <td>{v.engomado}</td>
-                <td><span className={`badge ${
-                  v.estado_verificacion === "EN TIEMPO" ? "bg-success" :
-                  v.estado_verificacion === "ATRASADA" ? "bg-danger" :
-                  v.estado_verificacion === "PENDIENTE" ? "bg-warning" : "bg-secondary"
-                }`}>{v.estado_verificacion}</span></td>
-                <td>{v.fecha_limite || "—"}</td>
+                <td>{v.estado_verificacion}</td>
+                <td>{v.fecha_limite ? new Date(v.fecha_limite).toLocaleDateString() : "—"}</td>
               </tr>
-            )) : (
-              <tr><td colSpan="16" className="text-muted py-3">No hay registros de verificación disponibles.</td></tr>
-            )}
+            )) : <tr><td colSpan="16">Sin registros</td></tr>}
           </tbody>
         </table>
-      </div>
-
-      <div className="text-center mt-3">
-        <button onClick={obtenerVerificaciones} className="btn btn-outline-danger fw-bold">🔄 Actualizar</button>
+        {modalUrl && <ModalFile url={modalUrl} onClose={() => setModalUrl(null)} />}
       </div>
     </div>
   );

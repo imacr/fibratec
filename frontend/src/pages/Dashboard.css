@@ -1,0 +1,26 @@
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* máximo 2 columnas */
+  gap: 2rem;
+  padding: 1rem;
+}
+
+/* Contenedor de cada chart */
+.chart-wrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 250px;
+}
+
+/* Canvas del chart ocupa todo el contenedor */
+.chart-wrapper canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Pantallas medianas o pequeñas: solo 1 columna */
+@media (max-width: 968px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}

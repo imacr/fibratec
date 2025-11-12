@@ -1,0 +1,66 @@
+/* Sidebar.css o Modal.css según donde prefieras */
+.modal-form {
+  display: flexbox;
+  flex-direction: column;
+  gap: 15px;
+  padding: 10px 0;
+}
+
+.modal-form input,
+.modal-form select {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.modal-form input:focus,
+.modal-form select:focus {
+  border-color: #28a745;
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn-guardar {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.btn-guardar:hover {
+  background-color: #1b952f;
+}
+
+.btn-cancelar {
+  background-color: #ccc;
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-cancelar:hover {
+  background-color: #999;
+}
+
+.modal-form h2 {
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+  text-align: center;
+}

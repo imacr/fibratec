@@ -20,8 +20,19 @@ const Unidades = () => {
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const MySwal = withReactContent(Swal);
+  const [pdfFrontal, setPdfFrontal] = useState(null);
+  const [pdfTrasero, setPdfTrasero] = useState(null);
   
   const API_URL = `${BASE_URL}/api/unidades`;
+
+const [archivos, setArchivos] = useState({});
+
+const handleChangeArchivo = (e) => {
+  setArchivos({
+    ...archivos,
+    [e.target.name]: e.target.files[0]  // guarda solo un archivo por input
+  });
+};
 
 //----------------------------------------------------------------------------------
 //estado para nueva unidad
@@ -212,15 +223,29 @@ const handleDeleteUnidad = async (id_unidad) => {
 const handleAgregarUnidad = async (e) => {
   e.preventDefault();
   try {
-    const response = await fetch(API_URL, {
+    const formData = new FormData();
+
+    // Agregar todos los campos de nuevaUnidad
+    for (const key in nuevaUnidad) {
+      if (nuevaUnidad[key] !== null) {
+        formData.append(key, nuevaUnidad[key]);
+      }
+    }
+
+    // Agregar los PDFs (asegúrate de tener estos estados)
+    if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
+    if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
+
+    const response = await fetch(`${API_URL}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nuevaUnidad),
+      body: formData // sin headers
     });
+
     if (!response.ok) throw new Error("Error al agregar unidad y placa");
 
     const data = await response.json();
     setShowModal(false);
+
     Swal.fire({
       title: "¡Éxito!",
       text: "Unidad y placa agregadas correctamente",
@@ -253,8 +278,11 @@ const handleAgregarUnidad = async (e) => {
       fecha_vigencia: "",
     });
 
+    // Limpiar PDFs seleccionados
+    setPdfFrontal(null);
+    setPdfTrasero(null);
+
   } catch (err) {
-    
     Swal.fire({
       title: "Error",
       text: err.message,
@@ -585,249 +613,319 @@ const handleAgregarUnidad = async (e) => {
         </form>
           </>
         ) : nuevaUnidad ? (
-        <>
-          <h2 style={{ textAlign: 'center' }}>Agregar Nueva Unidad con Placa</h2>
-          <form onSubmit={handleAgregarUnidad} className="form-container">
+        <><h2 style={{ textAlign: 'center' }}>Agregar Nueva Unidad con Placa</h2>
+<form onSubmit={handleAgregarUnidad} className="form-container">
 
-            {/* Fila 1: Marca y Vehículo */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Marca</label>
-                <input
-                  type="text"
-                  name="marca"
-                  value={nuevaUnidad.marca || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Vehículo</label>
-                <input
-                  type="text"
-                  name="vehiculo"
-                  value={nuevaUnidad.vehiculo || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 1: Marca, Vehículo y Modelo */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Marca</label>
+      <input
+        type="text"
+        name="marca"
+        placeholder="Ej. Nissan"
+        value={nuevaUnidad.marca || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Nissan"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Vehículo</label>
+      <input
+        type="text"
+        name="vehiculo"
+        placeholder="Ej. Versa"
+        value={nuevaUnidad.vehiculo || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Versa"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Modelo</label>
+      <input
+        type="text"
+        name="modelo"
+        placeholder="Ej. 2022"
+        value={nuevaUnidad.modelo || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. 2022"}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 2: Modelo y Clase Tipo */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Modelo</label>
-                <input
-                  type="text"
-                  name="modelo"
-                  value={nuevaUnidad.modelo || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Clase Tipo</label>
-                <input
-                  type="text"
-                  name="clase_tipo"
-                  value={nuevaUnidad.clase_tipo || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 2: Clase Tipo, NIV y Motor */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Clase Tipo</label>
+      <input
+        type="text"
+        name="clase_tipo"
+        placeholder="Ej. Sedán"
+        value={nuevaUnidad.clase_tipo || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Sedán"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>NIV</label>
+      <input
+        type="text"
+        name="niv"
+        placeholder="Ej. 1HGCM82633A004352"
+        value={nuevaUnidad.niv || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. 1HGCM82633A004352"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Motor</label>
+      <input
+        type="text"
+        name="motor"
+        placeholder="Ej. 1.6L"
+        value={nuevaUnidad.motor || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. 1.6L"}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 3: NIV y Motor */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>NIV</label>
-                <input
-                  type="text"
-                  name="niv"
-                  value={nuevaUnidad.niv || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Motor</label>
-                <input
-                  type="text"
-                  name="motor"
-                  value={nuevaUnidad.motor || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 3: Transmisión, Combustible y Color */}
+      <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+      <div className="form-group">
+        <label>Transmisión</label>
+        <select
+          name="transmision"
+          value={nuevaUnidad.transmision || ""}
+          onChange={handleChangeNuevaUnidad}
+          required
+        >
+          <option value="">Seleccione tipo</option>
+          <option value="Automática">Automática</option>
+          <option value="Manual">Manual</option>
+          <option value="CVT">CVT</option>
+          <option value="Semi-automática">Semi-automática</option>
+        </select>
+      </div>
 
-            {/* Fila 4: Transmisión y Combustible */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Transmisión</label>
-                <input
-                  type="text"
-                  name="transmision"
-                  value={nuevaUnidad.transmision || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Combustible</label>
-                <input
-                  type="text"
-                  name="combustible"
-                  value={nuevaUnidad.combustible || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+      <div className="form-group">
+        <label>Combustible</label>
+        <select
+          name="combustible"
+          value={nuevaUnidad.combustible || ""}
+          onChange={handleChangeNuevaUnidad}
+          required
+        >
+          <option value="">Seleccione tipo</option>
+          <option value="Gasolina">Gasolina</option>
+          <option value="Diésel">Diésel</option>
+          <option value="Eléctrico">Eléctrico</option>
+          <option value="Híbrido">Híbrido</option>
+          <option value="Gas LP">Gas LP</option>
+          <option value="Gas Natural">Gas Natural</option>
+        </select>
+      </div>
 
-            {/* Fila 5: Color y Fecha Adquisición */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Color</label>
-                <input
-                  type="text"
-                  name="color"
-                  value={nuevaUnidad.color || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Fecha Adquisición</label>
-                <input
-                  type="date"
-                  name="fecha_adquisicion"
-                  value={nuevaUnidad.fecha_adquisicion || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+    <div className="form-group">
+      <label>Color</label>
+      <input
+        type="text"
+        name="color"
+        placeholder="Ej. Blanco"
+        value={nuevaUnidad.color || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Blanco"}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 6: Propietario y UID */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Propietario</label>
-                <input
-                  type="text"
-                  name="propietario"
-                  value={nuevaUnidad.propietario || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>UID</label>
-                <input
-                  type="text"
-                  name="uid"
-                  value={nuevaUnidad.uid || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 4: Fecha Adquisición, Propietario y UID */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Fecha Adquisición</label>
+      <input
+        type="date"
+        name="fecha_adquisicion"
+        value={nuevaUnidad.fecha_adquisicion || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Propietario</label>
+      <input
+        type="text"
+        name="propietario"
+        placeholder="Ej. Juan Pérez"
+        value={nuevaUnidad.propietario || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Juan Pérez"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>UID</label>
+      <input
+        type="text"
+        name="uid"
+        placeholder="Ej. UID12345"
+        value={nuevaUnidad.uid || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. UID12345"}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 7: Teléfono GPS y SIM GPS */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Teléfono GPS</label>
-                <input
-                  type="text"
-                  name="telefono_gps"
-                  value={nuevaUnidad.telefono_gps || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>SIM GPS</label>
-                <input
-                  type="text"
-                  name="sim_gps"
-                  value={nuevaUnidad.sim_gps || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 5: Teléfono GPS, SIM GPS y Sucursal */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Teléfono GPS</label>
+      <input
+        type="text"
+        name="telefono_gps"
+        placeholder="Ej. 5512345678"
+        value={nuevaUnidad.telefono_gps || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. 5512345678"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>SIM GPS</label>
+      <input
+        type="text"
+        name="sim_gps"
+        placeholder="Ej. SIM12345"
+        value={nuevaUnidad.sim_gps || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. SIM12345"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Sucursal</label>
+      <input
+        type="text"
+        name="sucursal"
+        placeholder="Ej. Toluca"
+        value={nuevaUnidad.sucursal || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Toluca"}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 8: Sucursal y Compra/Arrendado */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Sucursal</label>
-                <input
-                  type="text"
-                  name="sucursal"
-                  value={nuevaUnidad.sucursal || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Compra/Arrendado</label>
-                <input
-                  type="text"
-                  name="compra_arrendado"
-                  value={nuevaUnidad.compra_arrendado || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-            </div>
+  {/* Fila 6: Compra/Arrendado, Placa y Folio */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Compra/Arrendado</label>
+      <input
+        type="text"
+        name="compra_arrendado"
+        placeholder="Ej. Compra"
+        value={nuevaUnidad.compra_arrendado || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. Compra"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Placa</label>
+      <input
+        type="text"
+        name="placa"
+        placeholder="Ej. ABC-123"
+        value={nuevaUnidad.placa || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. ABC-123"}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Folio</label>
+      <input
+        type="text"
+        name="folio"
+        placeholder="Ej. FOLIO123"
+        value={nuevaUnidad.folio || ""}
+        onChange={handleChangeNuevaUnidad}
+        onFocus={(e) => e.target.placeholder = ""}
+        onBlur={(e) => e.target.placeholder = "Ej. FOLIO123"}
+      />
+    </div>
+  </div>
 
-            {/* Fila 9: Placa y Folio */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Placa</label>
-                <input
-                  type="text"
-                  name="placa"
-                  value={nuevaUnidad.placa || ""}
-                  onChange={handleChangeNuevaUnidad}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Folio</label>
-                <input
-                  type="text"
-                  name="folio"
-                  value={nuevaUnidad.folio || ""}
-                  onChange={handleChangeNuevaUnidad}
-                />
-              </div>
-            </div>
+  {/* Fila 7: Fecha Expedición, Fecha Vigencia y PDF Frontal */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>Fecha Expedición</label>
+      <input
+        type="date"
+        name="fecha_expedicion"
+        value={nuevaUnidad.fecha_expedicion || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Fecha Vigencia</label>
+      <input
+        type="date"
+        name="fecha_vigencia"
+        value={nuevaUnidad.fecha_vigencia || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>PDF Placa Frontal</label>
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={(e) => setPdfFrontal(e.target.files[0])}
+        required
+      />
+    </div>
+  </div>
 
-            {/* Fila 10: Fecha Expedición y Fecha Vigencia */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Fecha Expedición</label>
-                <input
-                  type="date"
-                  name="fecha_expedicion"
-                  value={nuevaUnidad.fecha_expedicion || ""}
-                  onChange={handleChangeNuevaUnidad}
-                />
-              </div>
-              <div className="form-group">
-                <label>Fecha Vigencia</label>
-                <input
-                  type="date"
-                  name="fecha_vigencia"
-                  value={nuevaUnidad.fecha_vigencia || ""}
-                  onChange={handleChangeNuevaUnidad}
-                />
-              </div>
-            </div>
+  {/* Fila 8: PDF Placa Trasera */}
+  <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
+    <div className="form-group">
+      <label>PDF Placa Trasera</label>
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={(e) => setPdfTrasero(e.target.files[0])}
+        required
+      />
+    </div>
+  </div>
 
-            <button type="submit" className="btn-save">Agregar Unidad</button>
-          </form>
+  <button type="submit" className="btn-save">Agregar Unidad</button>
+</form>           
+                  
+          
         </>
       ) :(
           <>

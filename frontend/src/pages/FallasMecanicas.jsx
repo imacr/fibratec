@@ -3,7 +3,7 @@ import Swal from "sweetalert2";
 import Modal from "../components/Modal";
 import ModalFile from "../components/ModalFile";
 import { BASE_URL } from "../config";
-import './Unidades.css';
+import './Unidades.css'; // Aquí va todo el CSS que incluiremos abajo
 
 const FallasMecanicas = () => {
   const [fallas, setFallas] = useState([]);
@@ -129,7 +129,7 @@ const FallasMecanicas = () => {
         if (!response.ok) throw new Error("Error al actualizar la falla");
         data = await response.json();
       } else {
-        response = await fetch(API_URL, { method: 'POST', body: formData });
+        response = await fetch(`${BASE_URL}/falla_admin`, { method: 'POST', body: formData });
         if (!response.ok) throw new Error("Error al crear la falla");
         data = await response.json();
       }
@@ -187,7 +187,6 @@ const FallasMecanicas = () => {
 
       <div className="table-wrapper">
         <table className="elegant-table">
-            
           <thead>
             <tr>
               <th>ID</th>
@@ -216,7 +215,7 @@ const FallasMecanicas = () => {
                 <td>{f.proveedor}</td>
                 <td>{f.tipo_pago}</td>
                 <td>${f.costo?.toLocaleString()}</td>
-                <td>{f.url_comprobante ? <button onClick={() => setModalFile(`${BASE_URL}/${f.url_comprobante}`)}>Ver Comprobante</button> : '—'}</td>
+                <td>{f.url_comprobante ? <button  className="btn btn-outline-danger btn-sm" onClick={() => setModalFile(`${BASE_URL}/${f.url_comprobante}`)}>Ver Comprobante</button> : '—'}</td>
                 <td>{f.fecha_falla ? new Date(f.fecha_falla).toLocaleDateString() : "N/A"}</td>
                 <td>
                   <div className="actions-container">
@@ -242,139 +241,136 @@ const FallasMecanicas = () => {
       {showModal && (
         <Modal onClose={() => { setShowModal(false); setFallaToEdit(null); }}>
           <h2>{fallaToEdit ? 'Editar Falla' : 'Registrar Falla'}</h2>
-          <form onSubmit={handleSubmitFalla}>
-            {/* Campos del formulario */}
-            <label>Unidad:</label>
-            <select
-              name="id_unidad"
-              value={formFalla.id_unidad || ""}
-              onChange={e => setFormFalla(prev => ({ ...prev, id_unidad: e.target.value }))}
-            >
-              <option value="">Seleccione una unidad</option>
-              {unidades.map(u => <option key={u.id_unidad} value={u.id_unidad}>{u.id_unidad} - {u.vehiculo} ({u.marca} {u.modelo})</option>)}
-            </select>
+          <form className="form-container" onSubmit={handleSubmitFalla}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Unidad:</label>
+                <select
+                  name="id_unidad"
+                  value={formFalla.id_unidad || ""}
+                  onChange={e => setFormFalla(prev => ({ ...prev, id_unidad: e.target.value }))}
+                >
+                  <option value="">Seleccione una unidad</option>
+                  {unidades.map(u => <option key={u.id_unidad} value={u.id_unidad}>{u.id_unidad} - {u.vehiculo} ({u.marca} {u.modelo})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Pieza:</label>
+                <select
+                  name="id_pieza"
+                  value={formFalla.id_pieza || ""}
+                  onChange={e => setFormFalla(prev => ({ ...prev, id_pieza: e.target.value }))}
+                >
+                  <option value="">Seleccione una pieza</option>
+                  {piezas.map(p => <option key={p.id_pieza} value={p.id_pieza}>{p.nombre_pieza}</option>)}
+                </select>
+              </div>
+            </div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Marca:</label>
+                <select
+                  name="id_marca"
+                  value={formFalla.id_marca || ""}
+                  onChange={e => setFormFalla(prev => ({ ...prev, id_marca: e.target.value }))}
+                >
+                  <option value="">Seleccione una marca</option>
+                  {marcas.map(m => <option key={m.id_marca} value={m.id_marca}>{m.nombre_marca}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Lugar Reparación:</label>
+                <select
+                  name="id_lugar"
+                  value={formFalla.id_lugar}
+                  onChange={e => setFormFalla(prev => ({ ...prev, id_lugar: e.target.value }))}
+                  required
+                >
+                  <option value="">Selecciona un lugar</option>
+                  {lugares.map(l => <option key={l.id_lugar} value={l.id_lugar}>{l.nombre_lugar}</option>)}
+                </select>
+              </div>
+            </div>
 
-            <label>Pieza:</label>
-            <select
-              name="id_pieza"
-              value={formFalla.id_pieza || ""}
-              onChange={e => setFormFalla(prev => ({ ...prev, id_pieza: e.target.value }))}
-            >
-              <option value="">Seleccione una pieza</option>
-              {piezas.map(p => <option key={p.id_pieza} value={p.id_pieza}>{p.nombre_pieza}</option>)}
-            </select>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Proveedor:</label>
+                <input name="proveedor" value={formFalla.proveedor} onChange={e => setFormFalla(prev => ({ ...prev, proveedor: e.target.value }))} required />
+              </div>
+              <div className="form-group">
+                <label>Tipo Pago:</label>
+                <input name="tipo_pago" value={formFalla.tipo_pago} onChange={e => setFormFalla(prev => ({ ...prev, tipo_pago: e.target.value }))} required />
+              </div>
+            </div>
 
-            <label>Marca:</label>
-            <select
-              name="id_marca"
-              value={formFalla.id_marca || ""}
-              onChange={e => setFormFalla(prev => ({ ...prev, id_marca: e.target.value }))}
-            >
-              <option value="">Seleccione una marca</option>
-              {marcas.map(m => <option key={m.id_marca} value={m.id_marca}>{m.nombre_marca}</option>)}
-            </select>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Costo:</label>
+                <input type="number" name="costo" value={formFalla.costo} onChange={e => setFormFalla(prev => ({ ...prev, costo: e.target.value }))} required />
+              </div>
+              <div className="form-group">
+                <label>Tiempo de Uso Pieza:</label>
+                <input name="tiempo_uso_pieza" value={formFalla.tiempo_uso_pieza} onChange={e => setFormFalla(prev => ({ ...prev, tiempo_uso_pieza: e.target.value }))} />
+              </div>
+            </div>
 
-            <label>Lugar Reparación:</label>
-            <select
-              name="id_lugar"
-              value={formFalla.id_lugar}
-              onChange={e => setFormFalla(prev => ({ ...prev, id_lugar: e.target.value }))}
-              required
-            >
-              <option value="">Selecciona un lugar</option>
-              {lugares.map(l => <option key={l.id_lugar} value={l.id_lugar}>{l.nombre_lugar}</option>)}
-            </select>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Observaciones:</label>
+                <textarea name="observaciones" value={formFalla.observaciones} onChange={e => setFormFalla(prev => ({ ...prev, observaciones: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>
+                  Aplica Póliza:
+                  <input type="checkbox" name="aplica_poliza" checked={formFalla.aplica_poliza} onChange={e => setFormFalla(prev => ({ ...prev, aplica_poliza: e.target.checked }))} />
+                </label>
+              </div>
+            </div>
 
-            <label>Proveedor:</label>
-            <input name="proveedor" value={formFalla.proveedor} onChange={e => setFormFalla(prev => ({ ...prev, proveedor: e.target.value }))} required />
-            <label>Tipo Pago:</label>
-            <input name="tipo_pago" value={formFalla.tipo_pago} onChange={e => setFormFalla(prev => ({ ...prev, tipo_pago: e.target.value }))} required />
-            <label>Costo:</label>
-            <input type="number" name="costo" value={formFalla.costo} onChange={e => setFormFalla(prev => ({ ...prev, costo: e.target.value }))} required />
-            <label>Tiempo de Uso Pieza:</label>
-            <input name="tiempo_uso_pieza" value={formFalla.tiempo_uso_pieza} onChange={e => setFormFalla(prev => ({ ...prev, tiempo_uso_pieza: e.target.value }))} />
-            <label>Observaciones:</label>
-            <textarea name="observaciones" value={formFalla.observaciones} onChange={e => setFormFalla(prev => ({ ...prev, observaciones: e.target.value }))} />
-            <label>
-              Aplica Póliza:
-              <input type="checkbox" name="aplica_poliza" checked={formFalla.aplica_poliza} onChange={e => setFormFalla(prev => ({ ...prev, aplica_poliza: e.target.checked }))} />
-            </label>
-            <label>Comprobante (PDF):</label>
-            <input type="file" name="comprobante" accept="application/pdf" onChange={e => setFormFalla(prev => ({ ...prev, comprobanteFile: e.target.files[0] || null }))} />
+            <div className="form-row">
+              <div className="form-group">
+                <label>Comprobante (PDF):</label>
+                <input type="file" name="comprobante" accept="application/pdf" onChange={e => setFormFalla(prev => ({ ...prev, comprobanteFile: e.target.files[0] || null }))} />
+              </div>
+            </div>
+
             <div className="modal-buttons">
-              <button type="submit">{fallaToEdit ? 'Guardar Cambios' : 'Registrar Falla'}</button>
+              <button type="submit" className="btn-save">{fallaToEdit ? 'Guardar Cambios' : 'Registrar Falla'}</button>
               <button type="button" onClick={() => { setShowModal(false); setFallaToEdit(null); }}>Cancelar</button>
             </div>
           </form>
         </Modal>
       )}
 
- {modalDetalle && (
-  <Modal onClose={() => setModalDetalle(null)}>
-    <h2 className="details-header">Detalles adicionales de Falla ID {modalDetalle.id_falla}</h2>
-    <div className="details-container">
-      {modalDetalle ? (
-        <>
-          {/* Unidad */}
-          <div className="detail-item">
-            <strong>Unidad:</strong>
-            <span>
-              {unidades.find(u => u.id_unidad === modalDetalle.id_unidad)
-                ? `${unidades.find(u => u.id_unidad === modalDetalle.id_unidad).vehiculo} (${unidades.find(u => u.id_unidad === modalDetalle.id_unidad).marca} ${unidades.find(u => u.id_unidad === modalDetalle.id_unidad).modelo})`
-                : 'N/A'}
-            </span>
+      {/* Modal Detalle */}
+      {modalDetalle && (
+        <Modal onClose={() => setModalDetalle(null)}>
+          <h2 className="details-header">Detalles Falla ID {modalDetalle.id_falla}</h2>
+          <div className="details-container">
+            {Object.entries(modalDetalle).map(([key, value]) => {
+              if (['id_falla', 'id_unidad', 'id_pieza', 'id_marca', 'id_lugar', 'url_comprobante'].includes(key)) return null;
+              return (
+                <div key={key} className="detail-item">
+                  <strong>{key.replace(/_/g, ' ')}:</strong>
+                  <span>{value ? value.toString() : 'N/A'}</span>
+                </div>
+              );
+            })}
           </div>
-
-          {/* Pieza */}
-          <div className="detail-item">
-            <strong>Pieza:</strong>
-            <span>
-              {piezas.find(p => p.id_pieza === modalDetalle.id_pieza)?.nombre_pieza || 'N/A'}
-            </span>
+          {modalDetalle.url_comprobante && (
+            <p>
+              <strong>Comprobante:</strong>{" "}
+              <a href={`${BASE_URL}/${modalDetalle.url_comprobante}`} target="_blank" rel="noopener noreferrer">
+                Ver PDF
+              </a>
+            </p>
+          )}
+          <div className="modal-buttons">
+            <button onClick={() => setModalDetalle(null)}>Cerrar</button>
           </div>
-
-          {/* Marca */}
-          <div className="detail-item">
-            <strong>Marca:</strong>
-            <span>
-              {marcas.find(m => m.id_marca === modalDetalle.id_marca)?.nombre_marca || 'N/A'}
-            </span>
-          </div>
-
-
-
-          {/* Otros campos */}
-          {Object.entries(modalDetalle).map(([key, value]) => {
-            if (['id_falla', 'id_unidad', 'id_pieza', 'id_marca', 'id_lugar', 'url_comprobante'].includes(key)) return null;
-            return (
-              <div key={key} className="detail-item">
-                <strong>{key.replace(/_/g, ' ')}:</strong>
-                <span>{value ? value.toString() : 'N/A'}</span>
-              </div>
-            );
-          })}
-        </>
-      ) : (
-        <p>No hay datos para mostrar.</p>
+        </Modal>
       )}
-    </div>
-
-    {/* Comprobante PDF */}
-    {modalDetalle.url_comprobante && (
-      <p>
-        <strong>Comprobante:</strong>{" "}
-        <a href={`${BASE_URL}/${modalDetalle.url_comprobante}`} target="_blank" rel="noopener noreferrer">
-          Ver PDF
-        </a>
-      </p>
-    )}
-
-    <div className="modal-buttons">
-      <button onClick={() => setModalDetalle(null)}>Cerrar</button>
-    </div>
-  </Modal>
-)}
-
 
       {/* Modal PDF */}
       {modalFile && (

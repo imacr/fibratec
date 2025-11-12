@@ -1,24 +1,103 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "../components/Modal";
-import { BASE_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
+import { BASE_URL } from "../config";
+import Swal from "sweetalert2";
+import './registro_usuario.css';
 
 const RegistrarUsuario = ({ show, onClose, onCreate }) => {
   const API_URL = `${BASE_URL}/api/usuarios`;
+
   const [formData, setFormData] = useState({
     nombre: "",
     usuario: "",
     contraseña: "",
     correo: "",
     rol: "usuario",
-    estado: "activo"
+    estado: "activo",
+    chofer: null,
+    crearChofer: false,
+    curp: "",
+    calle: "",
+    colonia_localidad: "",
+    codpos: "",
+    municipio: "",
+    licencia_folio: "",
+    licencia_tipo: "",
+    licencia_vigencia: ""
   });
 
+  const [choferesExistentes, setChoferesExistentes] = useState([]);
+
+  // Cargar choferes existentes si el rol es chofer
+  useEffect(() => {
+    if (formData.rol === "chofer") {
+      fetch(`${BASE_URL}/api/choferes`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        }
+      })
+        .then(res => res.json())
+        .then(data => setChoferesExistentes(data))
+        .catch(err => console.error(err));
+    }
+  }, [formData.rol]);
+
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value
+    }));
+  };
+
+  const validarCamposChofer = () => {
+    if (!formData.curp || !formData.licencia_folio || !formData.licencia_tipo || !formData.licencia_vigencia) {
+      Swal.fire({
+        title: 'Campos incompletos',
+        text: 'Debes completar todos los campos obligatorios del chofer.',
+        icon: 'warning',
+        confirmButtonColor: '#ffc107'
+      });
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (formData.rol === "chofer" && formData.crearChofer && !validarCamposChofer()) {
+      return;
+    }
+
+    const payload = {
+      nombre: formData.nombre,
+      usuario: formData.usuario,
+      contraseña: formData.contraseña,
+      correo: formData.correo,
+      rol: formData.rol,
+      estado: formData.estado
+    };
+
+    if (formData.rol === "chofer") {
+      if (formData.crearChofer) {
+        payload.crear_chofer = true;
+        payload.chofer_data = {
+          nombre: formData.nombre,
+          curp: formData.curp,
+          calle: formData.calle,
+          colonia_localidad: formData.colonia_localidad,
+          codpos: formData.codpos,
+          municipio: formData.municipio,
+          licencia_folio: formData.licencia_folio,
+          licencia_tipo: formData.licencia_tipo,
+          licencia_vigencia: formData.licencia_vigencia
+        };
+      } else {
+        payload.id_chofer = formData.chofer;
+      }
+    }
+
     try {
       const response = await fetch(API_URL, {
         method: "POST",
@@ -26,38 +105,52 @@ const RegistrarUsuario = ({ show, onClose, onCreate }) => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${localStorage.getItem("token")}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Error: ${response.status} - ${errorText}`);
+        throw new Error(errorText);
       }
 
       const newUser = await response.json();
-      onCreate(newUser); // Actualiza lista de usuarios
-      onClose(); // Cierra modal
+      onCreate(newUser);
+      onClose();
+
       setFormData({
         nombre: "",
         usuario: "",
         contraseña: "",
         correo: "",
         rol: "usuario",
-        estado: "activo"
+        estado: "activo",
+        chofer: null,
+        crearChofer: false,
+        curp: "",
+        calle: "",
+        colonia_localidad: "",
+        codpos: "",
+        municipio: "",
+        licencia_folio: "",
+        licencia_tipo: "",
+        licencia_vigencia: ""
       });
-      const data = await fetch(API_URL).then(r => r.json());
-      
-          Swal.fire({
-            title: '¡Éxito!',
-            text: 'Usuario agregado correctamente',
-            icon: 'success',
-            iconColor: '#1b952fff',
-            confirmButtonColor: '#28a745'
-          });
-      
+
+      Swal.fire({
+        title: '¡Éxito!',
+        text: 'Usuario agregado correctamente',
+        icon: 'success',
+        confirmButtonColor: '#28a745'
+      });
+
     } catch (err) {
       console.error(err);
-      alert("Error al registrar usuario: " + err.message);
+      Swal.fire({
+        title: 'Error',
+        text: `No se pudo registrar usuario: ${err.message}`,
+        icon: 'error',
+        confirmButtonColor: '#dc3545'
+      });
     }
   };
 
@@ -67,47 +160,51 @@ const RegistrarUsuario = ({ show, onClose, onCreate }) => {
     <Modal onClose={onClose}>
       <h2>Registrar Nuevo Usuario</h2>
       <form onSubmit={handleSubmit} className="modal-form">
-        <input
-          type="text"
-          name="nombre"
-          placeholder="Nombre completo"
-          value={formData.nombre}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="text"
-          name="usuario"
-          placeholder="Usuario"
-          value={formData.usuario}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="password"
-          name="contraseña"
-          placeholder="Contraseña"
-          value={formData.contraseña}
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="email"
-          name="correo"
-          placeholder="Correo electrónico"
-          value={formData.correo}
-          onChange={handleChange}
-          required
-        />
+        <input type="text" name="nombre" placeholder="Nombre completo" value={formData.nombre} onChange={handleChange} required />
+        <input type="text" name="usuario" placeholder="Usuario" value={formData.usuario} onChange={handleChange} required />
+        <input type="password" name="contraseña" placeholder="Contraseña" value={formData.contraseña} onChange={handleChange} required />
+        <input type="email" name="correo" placeholder="Correo electrónico" value={formData.correo} onChange={handleChange} required />
+
         <select name="rol" value={formData.rol} onChange={handleChange}>
           <option value="admin">Admin</option>
           <option value="usuario">Usuario</option>
-          <option value="gerente">Gerente</option>
+          <option value="chofer">Chofer</option>
         </select>
+
         <select name="estado" value={formData.estado} onChange={handleChange}>
           <option value="activo">Activo</option>
           <option value="inactivo">Inactivo</option>
         </select>
+
+        {formData.rol === "chofer" && (
+          <>
+            <label>
+              <input type="checkbox" name="crearChofer" checked={formData.crearChofer} onChange={handleChange} />
+              Crear nuevo chofer
+            </label>
+
+            {formData.crearChofer ? (
+              <>
+                <input type="text" name="curp" placeholder="CURP" value={formData.curp} onChange={handleChange} required />
+                <input type="text" name="calle" placeholder="Calle" value={formData.calle} onChange={handleChange} />
+                <input type="text" name="colonia_localidad" placeholder="Colonia/Localidad" value={formData.colonia_localidad} onChange={handleChange} />
+                <input type="text" name="codpos" placeholder="Código Postal" value={formData.codpos} onChange={handleChange} />
+                <input type="text" name="municipio" placeholder="Municipio" value={formData.municipio} onChange={handleChange} />
+                <input type="text" name="licencia_folio" placeholder="Folio Licencia" value={formData.licencia_folio} onChange={handleChange} required />
+                <input type="text" name="licencia_tipo" placeholder="Tipo Licencia" value={formData.licencia_tipo} onChange={handleChange} required />
+                <input type="date" name="licencia_vigencia" value={formData.licencia_vigencia} onChange={handleChange} required />
+              </>
+            ) : (
+              <select name="chofer" value={formData.chofer || ""} onChange={handleChange} required>
+                <option value="">Selecciona un chofer existente</option>
+                {choferesExistentes.map(c => (
+                  <option key={c.id_chofer} value={c.id_chofer}>{c.nombre} ({c.curp})</option>
+                ))}
+              </select>
+            )}
+          </>
+        )}
+
         <div className="modal-actions">
           <button type="submit" className="btn-guardar">Registrar</button>
           <button type="button" className="btn-cancelar" onClick={onClose}>Cancelar</button>

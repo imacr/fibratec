@@ -28,25 +28,28 @@ const Login = ({ onLogin }) => {
 
             const data = await response.json();
 
-            if (response.ok) {
-                // ✅ Guardar usuarioId en localStorage
-                const usuarioId = data.user.id;
-                localStorage.setItem("usuarioId", usuarioId);
-                localStorage.setItem("isLoggedIn", "true");
+           if (response.ok) {
+            // Guardar datos de sesión
+            const usuarioId = data.user.id;
+            const rol = data.user.rol; // 👈 agrega esto
 
-                // 🔔 Mostrar alert con el ID del usuario
-                //alert(`Usuario logueado con ID: ${usuarioId}`);
+            localStorage.setItem("usuarioId", usuarioId);
+            localStorage.setItem("isLoggedIn", "true");
+            localStorage.setItem("rol", rol); // 👈 guarda el rol
 
-                // Pasa el ID al App.jsx
-                onLogin(usuarioId);
+            // Notifica al componente principal
+            onLogin(usuarioId);
 
-                // Redirigir según el rol
-                if (data.user.rol === "admin") {
-                    navigate("/admin/solicitudes");
-                } else {
-                    navigate("/chofer/solicitudes");
-                }
+            // Redirige según rol
+            if (rol === "admin") {
+                navigate("/admin/solicitudes");
+            } else if (rol === "chofer") {
+                navigate("/chofer/solicitudes");
             } else {
+                navigate("/"); // fallback
+            }
+        }
+        else {
                 setError(data.error || 'Credenciales inválidas');
             }
         } catch (err) {
@@ -110,3 +113,8 @@ const Login = ({ onLogin }) => {
 };
 
 export default Login;
+
+
+
+
+

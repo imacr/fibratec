@@ -1,0 +1,55 @@
+.calendario-municipal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.mes {
+  width: 200px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.nombre-mes {
+  text-align: center;
+  font-weight: bold;
+  background-color: #34495e;
+  color: white;
+  padding: 5px 0;
+}
+
+.dias-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background-color: #ecf0f1;
+}
+
+.dia-nombre {
+  text-align: center;
+  font-weight: bold;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.dias-mes {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  padding: 2px;
+}
+
+.dia {
+  width: 25px;
+  height: 25px;
+  text-align: center;
+  line-height: 25px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  border-radius: 3px;
+}
+
+.dia.vacio {
+  background-color: transparent;
+}

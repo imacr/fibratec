@@ -12,10 +12,15 @@
   "dependencies": {
     "bootstrap": "^5.3.8",
     "cdbreact": "^1.5.19",
+    "chart.js": "^4.5.1",
+    "framer-motion": "^12.23.24",
     "react": "^19.1.1",
     "react-bootstrap": "^2.10.10",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
+    "react-select": "^5.10.2",
+    "recharts": "^3.3.0",
     "sweetalert2": "^11.24.0",
     "sweetalert2-react-content": "^5.1.0"
   },

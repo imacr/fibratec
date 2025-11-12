@@ -176,7 +176,7 @@ const handleDeleteGarantia = async (id_garantia) => {
                 <td>{g.no_poliza}</td>
                 <td>
                   {g.url_poliza ? (
-                    <button onClick={() => setModalFile(`${BASE_URL}${g.url_poliza}`)}>Ver Póliza</button>
+                    <button  className="btn btn-outline-danger btn-sm" onClick={() => setModalFile(`${BASE_URL}${g.url_poliza}`)}>Ver Póliza</button>
                   ) : "—"}
                 </td>
                 <td>${g.suma_asegurada?.toLocaleString()}</td>
@@ -184,15 +184,16 @@ const handleDeleteGarantia = async (id_garantia) => {
                 <td>{g.vigencia}</td>
                 <td>${g.prima?.toLocaleString()}</td>
                 <td>
-                  <div className="actions-container">
-                    <button onClick={() => { setGarantiaToEdit(g); setShowModal(true); }}>
-                      <i className="fa-solid fa-pen-to-square icon-edit"></i>
-                    </button>
-                    <button onClick={() => handleDeleteGarantia(g.id_garantia)}>
-                      <i className="fa-solid fa-trash icon-delete"></i>
-                    </button>
-                  </div>
-                </td>
+                    <div className="actions-container">
+                      <button onClick={() => { setGarantiaToEdit(g); setShowModal(true); }}>
+                        <i className="fa-solid fa-pen-to-square icon-edit"></i>
+                      </button>
+                      <button onClick={() => handleDeleteGarantia(g.id_garantia)}>
+                        <i className="fa-solid fa-trash icon-delete"></i>
+                      </button>
+                    </div>
+                  </td>
+
               </tr>
             ))}
           </tbody>

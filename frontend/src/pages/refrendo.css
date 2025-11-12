@@ -1,0 +1,153 @@
+/* Contenedor del modal */
+.edit-placa-container {
+  padding: 14px 18px;
+  background-color: #fff;
+  border-radius: 8px;
+  width: 450px;
+  max-width: 95%;
+  margin: 0 auto;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.25);
+  font-family: "Segoe UI", Roboto, sans-serif;
+  color: #333;
+}
+
+/* Título */
+.edit-placa-container h2 {
+  text-align: center;
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+  color: #111;
+}
+
+/* Sección de campos */
+.edit-placa-container div {
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Labels */
+.edit-placa-container label {
+  margin-bottom: 2px;
+  font-weight: 600;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+/* Inputs y textarea */
+.edit-placa-container input[type="text"],
+.edit-placa-container input[type="number"],
+.edit-placa-container input[type="date"],
+.edit-placa-container select,
+.edit-placa-container input[type="file"],
+.edit-placa-container textarea {
+  padding: 5px 8px;
+  font-size: 0.88rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Textarea */
+.edit-placa-container textarea {
+  resize: vertical;
+  min-height: 50px;
+}
+
+/* Subtítulos REFRENDO/TENENCIA */
+.edit-placa-container h4 {
+  margin: 6px 0 4px 0;
+  font-size: 0.98rem;
+  color: #222;
+}
+
+/* Contenedor de secciones lado a lado */
+.edit-placa-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Cada sección de pago */
+.edit-placa-section {
+  flex: 1 1 48%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Botones */
+.edit-placa-container button {
+  padding: 5px 10px;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+/* Guardar */
+.edit-placa-container button.update-btn {
+  background-color: #1976d2;
+  color: #fff;
+}
+
+.edit-placa-container button.update-btn:hover {
+  background-color: #1565c0;
+}
+
+/* Cancelar */
+.edit-placa-container button.cancel-btn {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.edit-placa-container button.cancel-btn:hover {
+  background-color: #bdbdbd;
+}
+
+
+
+
+/* Botones */
+button {
+  padding: 0.45rem 0.8rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+/* Botones específicos */
+.update-btn {
+  background-color: #4CAF50;
+  color: #fff;
+  margin-right: 0.5rem;
+}
+
+.cancel-btn {
+  background-color: #f44336;
+  color: #fff;
+}
+
+/* Encabezados de sección */
+h4 {
+  margin-top: 1rem;
+  color: #c20000;
+  font-size: 1rem;
+}
+
+/* Labels */
+label {
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.2rem;
+}

@@ -75,6 +75,7 @@
     white-space: normal; /* Permite multilínea */
     word-break: break-word; /* Rompe palabras largas */
     overflow-wrap: break-word;
+    align-items: center;
 }
 
 

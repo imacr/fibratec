@@ -1,30 +1,31 @@
-/* Sidebar general */
+/* === SIDEBAR CON LÍNEA ROJA INFERIOR EN ELEMENTO ACTIVO === */
+
 .sidebar {
-  background: #000; /* Fondo negro */
-    position: fixed;
+  background: #000;
   color: white;
+  position: fixed;
   padding: 20px;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
   align-items: center;
+  transition: all 0.3s ease;
   z-index: 1000;
   font-family: "Arial", sans-serif;
+  box-shadow: 2px 0 8px rgba(255, 255, 255, 0.05);
 }
 
-/* Sidebar grande: ocupa su espacio normal */
+/* Pantallas grandes */
 @media (min-width: 768px) {
   .sidebar {
     width: 200px;
     height: 100vh;
-    position: relative; /* empuja el contenido */
+    position: relative;
   }
 }
 
-/* Sidebar móvil: sobre contenido */
+/* Móvil */
 @media (max-width: 767px) {
   .sidebar {
-    
     top: 0;
     left: -200px;
     width: 200px;
@@ -40,9 +41,9 @@
 .menu-btn {
   position: fixed;
   top: 25px;
-  left: 0px;
+  left: 0;
   z-index: 1001;
-  background: #e53935; /* Rojo */
+  background: #e53935;
   color: white;
   border: none;
   padding: 6px 10px;
@@ -62,7 +63,7 @@
   z-index: 999;
 }
 
-/* Sidebar header */
+/* Header */
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -71,11 +72,10 @@
 }
 
 .logo {
-  width: 90%; /* Logo ocupa 90% del ancho */
+  width: 90%;
   height: auto;
 }
 
-/* Cerrar botón móvil */
 .close-btn {
   background: none;
   border: none;
@@ -83,77 +83,108 @@
   font-size: 22px;
   cursor: pointer;
 }
-/* --- Contenedor Principal del Menú --- */
+
+/* Menú principal */
 .sidebar-menu {
-  padding-top: 5px; /* Mínimo espacio superior */
+  padding-top: 5px;
   display: flex;
   flex-direction: column;
-  gap: 0; /* Sin espacio entre elementos */
+  gap: 4px;
 }
 
-/* --- Estilo General de los Enlaces (ULTRA COMPACTO) --- */
+/* === Enlaces principales con fondo diferenciado === */
 .sidebar-menu a {
-  color: var(--text-secondary);
+  position: relative; /* necesario para pseudo-elemento */
+  color: var(--text-secondary, #ccc);
   text-decoration: none;
-  font-size: 0.85rem; /* Fuente muy pequeña (13.6px) */
-  padding: 4px 7px; /* Padding mínimo con píxeles */
+  font-size: 0.85rem;
+  padding: 6px 8px;
   display: flex;
   align-items: center;
-  gap: 8px; /* Espacio mínimo con píxeles */
-  border-radius: 3px;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
+  gap: 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.25s ease;
+  overflow: hidden;
 }
 
-/* --- Estilo de los Íconos --- */
+/* Línea roja inferior animada */
+.sidebar-menu a::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: red;
+  transition: all 0.3s ease;
+  transform: translateX(-50%);
+  border-radius: 1px;
+}
+
+/* Íconos */
 .sidebar-menu a i {
   color: rgb(198, 191, 191);
-  width: 16px; /* Ancho ajustado */
+  width: 16px;
   text-align: center;
-  font-size: 0.9rem; /* Iconos más pequeños */
-  transition: color var(--transition-speed);
+  font-size: 0.9rem;
+  transition: color 0.25s ease;
 }
 
-/* --- Efecto Hover (al pasar el mouse) --- */
+/* Hover: resalta con más brillo y línea sutil */
 .sidebar-menu a:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  height: auto;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.sidebar-menu a:hover::after {
+  width: 80%;
 }
 .sidebar-menu a:hover i {
   color: red;
 }
 
-/* --- Efecto Activo (para la página actual) --- */
+/* Activo con línea roja completa */
 .sidebar-menu a.active {
-  background: rgb(237, 234, 234) ;
+  background: rgb(219, 219, 219);
   color: #060606;
   font-weight: 500;
+  border-color: rgba(255, 255, 255, 0.3);
 }
 .sidebar-menu a.active i {
   color: red;
-  background-color: antiquewhite;
+}
+.sidebar-menu a.active::after {
+  width: 100%;
+  background: red;
 }
 
-/* --- Estilo del Submenú (ULTRA COMPACTO) --- */
+/* === Submenú con fondo diferenciado === */
 .submenu {
-  margin: 0 0 2px 0; /* Sin margen superior */
-  padding-left: 1rem; /* Indentación mínima */
-  border-left: 2px solid var(--bg-secondary);
-  margin-left: 8px; /* Alineación con el icono */
-  background-color: rgba(75, 74, 74, 0.758);
+  margin: 0 0 2px 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--bg-secondary, #444);
+  margin-left: 8px;
+  border-radius: 4px;
 }
 
 .submenu a {
-  font-size: 0.8rem; /* Fuente de sub-item casi al mínimo legible (12.8px) */
-  padding: 3px 6px; /* Padding de sub-item mínimo */
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 2px;
 }
 
-/* --- [CORREGIDO] Efecto Hover para el Submenú --- */
+/* Hover submenú */
 .submenu a:hover {
-  background: rgb(254, 251, 251); /* Añade fondo sutil */
-  color: black;      /* Cambia el texto a blanco brillante */
+  background: rgb(77, 74, 74);
+  color: black;
 }
 
+/* Badge */
 .notification-badge {
   background: red;
   color: white;

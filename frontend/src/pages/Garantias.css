@@ -1,23 +1,112 @@
-/* Contenedor principal: Fondo Blanco Suave */
-.garantias-container{
-    padding: 20px;
-    background-color: #f8f8f8; 
-    font-family: Arial, sans-serif; /* Fuente limpia y moderna */
-
-    /* Se elimina align-items: center; ya que no es un flex/grid contenedor raíz */
-}
-/* Título: Negro con línea roja de énfasis */
-.garantias-container h1 {
-    color: #212529; /* Negro Profundo */
-    margin-bottom: 20px;
-    border-bottom: 1px solid #dc3545; /* Toque Rojo Sutil */
-    padding-bottom: 10px;
-    font-size: 1.8rem; /* Tamaño de fuente reducido */
+/* Contenedor general del formulario */
+.modal-form {
+  background-color: #f5f5f5; /* fondo claro, elegante */
+  color: #333;
+  padding: 25px 30px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* dos columnas */
+  gap: 15px;
+  font-family: "Segoe UI", Roboto, sans-serif;
 }
 
-/* Mostrar siempre por defecto */
-.col-chofer {
-    display: table-cell;
+/* Título en toda la fila */
+.modal-form h2 {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin-bottom: 15px;
+  font-size: 1.6rem;
+  color: #1b95ff;
+}
+
+/* Inputs y selects */
+.modal-form input,
+.modal-form select,
+.modal-form input[type="file"] {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #fff;
+  color: #333;
+  transition: all 0.2s ease-in-out;
+}
+
+.modal-form input:focus,
+.modal-form select:focus,
+.modal-form input[type="file"]:focus {
+  border-color: #1b95ff;
+  outline: none;
+  box-shadow: 0 0 6px rgba(27, 149, 255, 0.3);
+}
+
+/* Botones ocupando toda la fila */
+.modal-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* Botón guardar */
+.btn-guardar {
+  background-color: #1b95ff;
+  color: #fff;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  flex: 1;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-guardar:hover {
+  background-color: #0f7acc;
+}
+
+/* Botón cancelar */
+.btn-cancelar {
+  background-color: #ccc;
+  color: #333;
+  border: none;
+  padding: 12px 25px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 1;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-cancelar:hover {
+  background-color: #999;
+}
+
+/* Archivo estilizado */
+.modal-form input[type="file"] {
+  border: 1px dashed #ccc;
+  padding: 8px;
+  cursor: pointer;
+}
+
+/* Responsive para móviles */
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column;
+  }
+  .btn-guardar, .btn-cancelar {
+    width: 100%;
+  }
+}
+.swal2-container {
+  z-index: 2000 !important;
 }
 
 /* Ocultar en pantallas más pequeñas (ejemplo: menores de 1366px o lo que necesites) */

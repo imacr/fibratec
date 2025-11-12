@@ -22,25 +22,44 @@ import AdminSolicitudes from "./pages/AdminSolicitudes";
 import ListaSolicitudes from "./components/Lista_solicitudeschofer";
 import FallasMecanicas from "./pages/FallasMecanicas";
 import { NotificationProvider } from "./components/NotificationContext";
-
+import HistorialPlacas from "./pages/historial_placas";
+import Placas from "./pages/Placas";
+import RegistroPago from "./pages/Refrendo_tenencia";
+import HistorialRefrendo from "./pages/Historial_refrendo_tenecia";
 import Swal from "sweetalert2";
 
 // Estilos
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import BotonAlertas from "./pages/botonespruebas";
+import HistorialVerificaciones from "./pages/Historial_verificaciones";
+import Mantenimientos from "./pages/Mantenimientos";
+import TiposMantenimiento from "./pages/TiposMantenimientos";
+import FrecuenciasPorMarca from "./pages/FrecuenciasPorMarca";
+import MantenimientosProgramados from "./pages/MantenimientosProgramados";
+import Asignaciones from "./pages/Asignaciones";
+import CalendarioAnual from "./pages/Calendario";
 
 // ====================================================
 // CONTENIDO PRINCIPAL DE LA APP
 // ====================================================
 function AppContent({ isLoggedIn, onLogin, onLogout, loading, usuarioId }) {
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [rol, setRol] = useState(null);
   const toggleSidebar = () => setSidebarVisible(!sidebarVisible);
+
+  // Recuperar rol al cargar
+  useEffect(() => {
+    const userRol = localStorage.getItem("rol");
+    
+    setRol(userRol);
+  }, [isLoggedIn]);
 
   // === AUTO LOGOUT POR INACTIVIDAD ===
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    const AUTO_LOGOUT_TIME = 20 * 60 * 1000; // 20 minutos
+    const AUTO_LOGOUT_TIME = 60 * 60 * 1000; // 1 hora
     let logoutTimer;
 
     const resetTimer = () => {
@@ -58,14 +77,12 @@ function AppContent({ isLoggedIn, onLogin, onLogout, loading, usuarioId }) {
       }, AUTO_LOGOUT_TIME);
     };
 
-    // Escucha eventos de actividad
     window.addEventListener("mousemove", resetTimer);
     window.addEventListener("keydown", resetTimer);
     window.addEventListener("scroll", resetTimer);
     window.addEventListener("click", resetTimer);
 
-    resetTimer(); // Inicia el contador
-
+    resetTimer();
     return () => {
       clearTimeout(logoutTimer);
       window.removeEventListener("mousemove", resetTimer);
@@ -75,9 +92,7 @@ function AppContent({ isLoggedIn, onLogin, onLogout, loading, usuarioId }) {
     };
   }, [isLoggedIn, onLogout]);
 
-  if (loading) {
-    return <div className="centered-loader">Cargando...</div>;
-  }
+  if (loading) return <div className="centered-loader">Cargando...</div>;
 
   return (
     <div className="app-container">
@@ -87,19 +102,42 @@ function AppContent({ isLoggedIn, onLogin, onLogout, loading, usuarioId }) {
           <div className={`main-content ${sidebarVisible ? "" : "full-width"}`}>
             <Header onLogout={onLogout} toggleSidebar={toggleSidebar} />
             <div className="content">
-              
               <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/usuarios" element={<Usuarios />} />
-                <Route path="/garantias" element={<Garantias />} />
-                <Route path="/verificaciones" element={<Verificaciones />} />
-                <Route path="/unidades" element={<Unidades />} />
+                {/* Rutas generales solo si no es chofer */}
+                {rol !== "chofer" && (
+                  <>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/usuarios" element={<Usuarios />} />
+                    <Route path="/garantias" element={<Garantias />} />
+                    <Route path="/verificaciones" element={<Verificaciones />} />
+                    <Route path="/unidades" element={<Unidades />} />
+                    <Route path="/admin/solicitudes" element={<AdminSolicitudes />} />
+                    <Route path="/fallasmecanicas" element={<FallasMecanicas />} />
+                    <Route path="/registropago" element={<RegistroPago />} />
+                    <Route path="/placas" element={<Placas />} />
+                    <Route path="/historialplacas" element={<HistorialPlacas />} />
+                    <Route path="/historialrefrendo" element={<HistorialRefrendo />} />
+                    <Route path="/botones" element={<BotonAlertas />} />
+                    <Route path="/historialverificaciones" element={<HistorialVerificaciones />} />
+                    <Route path="/mantenimientos" element={<Mantenimientos />} />
+                    <Route path="/tipos_mantenimientos" element={<TiposMantenimiento />} />
+                    <Route path="/frecuencia_mantenimiento" element={<FrecuenciasPorMarca />} />
+                    <Route path="/mantenimientos_programado" element={<MantenimientosProgramados />} />
+                    <Route path="/Asignaciones" element={<Asignaciones />} />
+                    <Route path="/Calendario" element={<CalendarioAnual />} />
 
-                {/* ✅ Rutas con usuarioId */}
-                <Route path="/chofer/solicitudes" element={<ChoferFallas usuarioId={usuarioId} />}/>
-                <Route path="/chofer/listasolicitudes" element={<ListaSolicitudes usuarioId={usuarioId} />}/>
-                <Route path="/admin/solicitudes" element={<AdminSolicitudes />} />
-                <Route path="/fallasmecanicas" element={<FallasMecanicas />} />
+
+                  </>
+                )}
+
+                {/* Rutas solo para chofer */}
+                {(rol === "chofer" || rol === "admin" || rol === "usuario") && (
+                  <>
+                    <Route path="/chofer/solicitudes" element={<ChoferFallas usuarioId={usuarioId} />} />
+                    <Route path="/chofer/listasolicitudes" element={<ListaSolicitudes usuarioId={usuarioId} />} />
+                  </>
+                )}
+
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
@@ -119,6 +157,7 @@ function AppContent({ isLoggedIn, onLogin, onLogout, loading, usuarioId }) {
     </div>
   );
 }
+
 
 // ====================================================
 // COMPONENTE PRINCIPAL APP
@@ -146,13 +185,14 @@ export default function App() {
 
   };
 
-  // Cierre de sesión
-  const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("usuarioId");
-    setIsLoggedIn(false);
-    setUsuarioId(null);
-  };
+const handleLogout = () => {
+  localStorage.removeItem("isLoggedIn");
+  localStorage.removeItem("usuarioId");
+  localStorage.removeItem("rol"); // 👈 limpia el rol también
+  setIsLoggedIn(false);
+  setUsuarioId(null);
+};
+
 
   return (
     <NotificationProvider>

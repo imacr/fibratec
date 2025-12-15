@@ -1,0 +1,84 @@
+/* CambiarContraseña.css */
+.cambiar-password-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.cambiar-password-page .form-container {
+  background: #fff;
+  padding: 30px 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 400px;
+  transition: all 0.3s ease;
+}
+
+.cambiar-password-page .form-title {
+  text-align: center;
+  font-size: 1.8rem;
+  margin-bottom: 25px;
+  color: #333;
+}
+
+.cambiar-password-page .form-content input {
+  width: 100%;
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border 0.2s;
+}
+
+.cambiar-password-page .form-content input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.cambiar-password-page .form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cambiar-password-page .btn-guardar,
+.cambiar-password-page .btn-cancelar {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cambiar-password-page .btn-guardar {
+  background: #28a745;
+  color: #fff;
+}
+
+.cambiar-password-page .btn-guardar:hover {
+  background: #218838;
+}
+
+.cambiar-password-page .btn-cancelar {
+  background: #dc3545;
+  color: #fff;
+}
+
+.cambiar-password-page .btn-cancelar:hover {
+  background: #c82333;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .cambiar-password-page .form-actions {
+    flex-direction: column;
+  }
+}

@@ -118,7 +118,7 @@ const [showChangePassword, setShowChangePassword] = useState(false);
             <div className="content">
               <Routes>
                 {/* Rutas generales solo si no es chofer */}
-                {rol !== "chofer" && (
+                {rol !== "Conductor" && (
                   <>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/usuarios" element={<Usuarios />} />
@@ -150,7 +150,7 @@ const [showChangePassword, setShowChangePassword] = useState(false);
                 )}
 
                 {/* Rutas solo para chofer */}
-                {(rol === "chofer" || rol === "admin" || rol === "usuario") && (
+                {(rol === "Conductor" || rol === "admin" || rol === "usuario" || rol === "Administrador") && (
                   <>
                     <Route path="/chofer/solicitudes" element={<ChoferFallas usuarioId={usuarioId} />} />
                     <Route path="/chofer/listasolicitudes" element={<ListaSolicitudes usuarioId={usuarioId} />} />

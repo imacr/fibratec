@@ -32,6 +32,19 @@ const Unidades = () => {
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState('');
   const [comprobantePago, setComprobantePago] = useState(null);
   const [tarjetaCirculacion, setTarjetaCirculacion] = useState(null);
+  const [modalMode, setModalMode] = useState("add"); // MAL
+
+// "add", "edit", "details"
+
+const [combustibles, setCombustibles] = useState([]);
+  const [selectedCombustible, setSelectedCombustible] = useState("");
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/combustible`)
+      .then((res) => res.json())
+      .then((data) => setCombustibles(data))
+      .catch((err) => console.error("Error al cargar combustibles:", err));
+  }, []);
 
 
 
@@ -58,38 +71,58 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  if (!empresaSeleccionada) return setSucursales([]);
-
-  fetch(`${BASE_URL}/sucursales?empresa=${empresaSeleccionada}`)
+  fetch(`${BASE_URL}/sucursales`)
     .then(res => res.json())
     .then(data => setSucursales(data))
     .catch(err => console.error(err));
-}, [empresaSeleccionada]);
+}, []);
+
+
+
 
 //----------------------------------------------------------------------------------
 const [nuevaUnidad, setNuevaUnidad] = useState({
+  // Organización
   id_empresa: "",
-  sucursal: "",
+  id_sucursal: "",
+
+  // Datos del vehículo
+  cve: "",
   marca: "",
-  vehiculo: "",
+  version: "",
+  tipo: "",
+  clase: "",
   modelo: "",
-  clase_tipo: "",
   niv: "",
   motor: "",
   transmision: "",
-  combustible: "",
+  id_combustible: "",
   color: "",
+
+  // GPS
   telefono_gps: "",
   sim_gps: "",
   uid: "",
+
+  // Propiedad
   propietario: "",
   compra_arrendado: "",
+
+  // Información financiera / documentos
   fecha_adquisicion: "",
+  valor_factura: "",
   folio: "",
   placa: "",
   fecha_expedicion: "",
   fecha_vigencia: "",
   monto_pago: "",
+
+  // Control operativo
+  kilometraje_actual: "",
+  litros_actuales: "",
+  tolerancia: "",
+  capacidad_tanque: "",
+  kilometraje_por_litro: "",
 });
 
 
@@ -118,7 +151,7 @@ const [nuevaUnidad, setNuevaUnidad] = useState({
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentUnidades = unidades.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(unidades.length / itemsPerPage);
-  
+
 
   
 
@@ -140,59 +173,99 @@ const handleChangeNuevaUnidad = (e) => {
 
 //----------------------------------------------------------------------------------
 // Actualizar unidad
+
 const handleUpdateUnidad = async (e) => {
   e.preventDefault();
 
   try {
     const formData = new FormData();
 
-    // ----------------------------
+    // =============================
+    // Inicializar mas_datos si no existe
+    // =============================
+    const masDatos = {
+      clase_tipo: "",
+      motor: "",
+      transmision: "",
+      combustible: "",
+      color: "",
+      propietario: "",
+      compra_arrendado: "",
+      telefono_gps: "",
+      sim_gps: "",
+      uid: "",
+      id_combustible: "",
+      ...(unidadToEdit.mas_datos || {})
+    };
+
+    // =============================
     // Campos directos de unidadToEdit
-    // ----------------------------
+    // =============================
     const camposDirectos = [
-      "marca", "vehiculo", "modelo", "fecha_adquisicion",
-      "valor_factura", "kilometraje_actual", "id_empresa", "sucursal",
-      "niv"  
-    ];
+  "marca","cve","version", "tipo", "modelo", "fecha_adquisicion",
+  "valor_factura", "kilometraje_actual", "id_empresa", "id_sucursal",
+  "id_combustible", // ← AGREGADO
+  "niv", "litros_actuales", "tolerancia", "capacidad_tanque", "kilometraje_por_litro"
+];
 
     camposDirectos.forEach(field => {
       let valor = unidadToEdit[field];
       formData.append(field, valor !== undefined && valor !== null ? valor.toString() : "");
     });
 
-    // ----------------------------
+    // =============================
     // Campos dentro de mas_datos
-    // ----------------------------
+    // =============================
     const camposMasDatos = [
-      "clase_tipo", "motor", "transmision", "combustible", 
-      "color", "propietario", "compra_arrendado", 
-      "telefono_gps", "sim_gps", "uid"
-    ];
+  "clase_tipo", "motor", "transmision",
+  "color", "propietario", "compra_arrendado", 
+  "telefono_gps", "sim_gps", "uid",
+  "litros_actuales", "tolerancia", "capacidad_tanque", "kilometraje_por_litro", "es_utilitario" // <-- agregar aquí
+
+];
+
 
     camposMasDatos.forEach(field => {
-      let valor = unidadToEdit.mas_datos?.[field];
+      let valor = masDatos[field];
       formData.append(field, valor !== undefined && valor !== null ? valor.toString() : "");
     });
 
-    // ----------------------------
+    // =============================
+    // Campos de placas opcionales
+    // =============================
+    if (agregarPlacas) {
+      const camposPlacas = [
+        "placa", "folio", "fecha_expedicion", "fecha_vigencia", "monto_pago"
+      ];
+      camposPlacas.forEach(field => {
+        let valor = unidadToEdit[field];
+        formData.append(field, valor !== undefined && valor !== null ? valor.toString() : "");
+      });
+    }
+
+    // =============================
     // Archivos opcionales
-    // ----------------------------
+    // =============================
     if (fotoUnidad) formData.append("foto_unidad", fotoUnidad);
     if (pdfFactura) formData.append("pdf_factura", pdfFactura);
-    if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
-    if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
+    if (agregarPlacas) {
+      if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
+      if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
+      if (tarjetaCirculacion) formData.append("tarjeta_circulacion", tarjetaCirculacion);
+      if (comprobantePago) formData.append("comprobante_pago", comprobantePago);
+    }
 
-    // ----------------------------
+    // =============================
     // Debug: revisar datos antes de enviar
-    // ----------------------------
+    // =============================
     console.log("=== FormData a enviar ===");
     for (let pair of formData.entries()) {
       console.log(pair[0], ":", pair[1]);
     }
 
-    // ----------------------------
+    // =============================
     // Petición PUT al backend
-    // ----------------------------
+    // =============================
     const response = await fetch(`${API_URL}/${unidadToEdit.id_unidad}`, {
       method: "PUT",
       body: formData
@@ -206,9 +279,9 @@ const handleUpdateUnidad = async (e) => {
     const data = await response.json();
     console.log("Unidad actualizada:", data);
 
-    // ----------------------------
+    // =============================
     // Refrescar lista y cerrar modal
-    // ----------------------------
+    // =============================
     const unidadesActualizadas = await fetch(API_URL).then(r => r.json());
     setUnidades(unidadesActualizadas);
     setShowModal(false);
@@ -279,59 +352,79 @@ const handleDeleteUnidad = async (id_unidad) => {
 };
 
 //----------------------------------------------------------------------------------
-// Agregar nueva unidad
 const handleAgregarUnidad = async (e) => {
   e.preventDefault();
 
   try {
     // Validaciones básicas
     if (!nuevaUnidad.id_empresa) throw new Error("Seleccione una empresa");
-    if (!nuevaUnidad.sucursal) throw new Error("Seleccione una sucursal");
+    if (!nuevaUnidad.id_sucursal) throw new Error("Seleccione una sucursal");
 
     const formData = new FormData();
 
-    // Agregar campos de texto excepto id_empresa e id_sucursal
-    for (const key in nuevaUnidad) {
-      if (nuevaUnidad[key] !== null && nuevaUnidad[key] !== "" && key !== "id_empresa" && key !== "sucursal") {
-        formData.append(key, nuevaUnidad[key]);
-      }
-    }
+    // Agregar campos de texto y números
+    const camposTexto = [
+      "cve", "marca", "version", "tipo", "clase",
+      "niv", "motor", "transmision", "color",
+      "telefono_gps", "sim_gps", "uid", "propietario", "compra_arrendado",
+      "fecha_adquisicion","modelo"
+    ];
 
-    // Agregar id_empresa e id_sucursal como números
+    camposTexto.forEach(c => {
+      if (nuevaUnidad[c]) formData.append(c, nuevaUnidad[c]);
+    });
+
+    const camposNumericos = [
+       "valor_factura", "kilometraje_actual",
+      "litros_actuales","tolerancia", "capacidad_tanque",
+      "kilometraje_por_litro", "monto_pago","año","id_combustible"
+    ];
+    
+    camposNumericos.forEach(c => {
+      if (nuevaUnidad[c] !== "" && nuevaUnidad[c] !== null) {
+        formData.append(c, nuevaUnidad[c]);
+      }
+    });
+
+    // IDs de empresa y sucursal
     formData.append("empresa", parseInt(nuevaUnidad.id_empresa));
-    formData.append("sucursal", parseInt(nuevaUnidad.sucursal));
+    formData.append("sucursal", parseInt(nuevaUnidad.id_sucursal));
+    formData.append("id_combustible", parseInt(nuevaUnidad.id_combustible));
+    formData.append("es_utilitario", nuevaUnidad.es_utilitario || "No Utilitario");
+    formData.append("estado_unidad", agregarPlacas ? "Asignado" : "Sin_Placas");
 
     // Archivos opcionales
     if (fotoUnidad) formData.append("foto_unidad", fotoUnidad);
     if (pdfFactura) formData.append("pdf_factura", pdfFactura);
     if (agregarPlacas) {
-    if (nuevaUnidad.placa) formData.append("placa", nuevaUnidad.placa);
-    if (nuevaUnidad.folio) formData.append("folio", nuevaUnidad.folio);
-    if (nuevaUnidad.fecha_expedicion) formData.append("fecha_expedicion", nuevaUnidad.fecha_expedicion);
-    if (nuevaUnidad.fecha_vigencia) formData.append("fecha_vigencia", nuevaUnidad.fecha_vigencia);
-    if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
-    if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
-    if (comprobantePago) formData.append("comprobante", comprobantePago);
-    if (tarjetaCirculacion) formData.append("tarjeta_circulacion", tarjetaCirculacion);
+      if (nuevaUnidad.placa) formData.append("placa", nuevaUnidad.placa);
+      if (nuevaUnidad.folio) formData.append("folio", nuevaUnidad.folio);
+      if (nuevaUnidad.fecha_expedicion) formData.append("fecha_adquisicion", nuevaUnidad.fecha_adquisicion);
 
+      if (nuevaUnidad.fecha_expedicion) formData.append("fecha_expedicion", nuevaUnidad.fecha_expedicion);
+      if (nuevaUnidad.fecha_vigencia) formData.append("fecha_vigencia", nuevaUnidad.fecha_vigencia);
+      if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
+      if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
+      if (comprobantePago) formData.append("comprobante", comprobantePago);
+      if (tarjetaCirculacion) formData.append("tarjeta_circulacion", tarjetaCirculacion);
     }
 
     // Enviar a la API
-    const response = await fetch(`${API_URL}`, {
+    const response = await fetch(`${BASE_URL}/api/unidades`, {
       method: "POST",
       body: formData,
     });
 
     if (!response.ok) {
       const errorRes = await response.json();
-      console.error("Error API:", errorRes);
-      throw new Error(errorRes.message || "Error al agregar unidad");
+      throw new Error(errorRes.error || "Error al agregar unidad");
     }
 
     const data = await response.json();
 
-    // Éxito
-    setUnidades(prev => [...prev, data]);
+    // Actualizar lista de unidades en frontend
+    setUnidades(prev => [...prev, data.unidad]);
+
     Swal.fire({
       title: "¡Éxito!",
       text: "Unidad agregada correctamente",
@@ -339,14 +432,16 @@ const handleAgregarUnidad = async (e) => {
       confirmButtonColor: "#28a745",
     });
 
-    // Limpiar estado
+    // Limpiar formulario
     setNuevaUnidad({
       id_empresa: "",
-      sucursal: "",
+      id_sucursal: "",
+      cve: "",
       marca: "",
-      vehiculo: "",
+      version: "",
+      tipo: "",
+      clase: "",
       modelo: "",
-      clase_tipo: "",
       niv: "",
       motor: "",
       transmision: "",
@@ -358,17 +453,25 @@ const handleAgregarUnidad = async (e) => {
       propietario: "",
       compra_arrendado: "",
       fecha_adquisicion: "",
+      valor_factura: "",
       folio: "",
       placa: "",
       fecha_expedicion: "",
       fecha_vigencia: "",
-      valor_factura: "",
-      kilometraje_actual: ""
+      monto_pago: "",
+      kilometraje_actual: "",
+      litros_actuales: "",
+      tolerancia: "",
+      capacidad_tanque: "",
+      kilometraje_por_litro: ""
     });
+
     setFotoUnidad(null);
     setPdfFactura(null);
     setPdfFrontal(null);
     setPdfTrasero(null);
+    setComprobantePago(null);
+    setTarjetaCirculacion(null);
     setAgregarPlacas(false);
     setShowModal(false);
 
@@ -380,6 +483,16 @@ const handleAgregarUnidad = async (e) => {
       confirmButtonColor: "#d33"
     });
   }
+};
+
+const handleMasDatosChange = (field, value) => {
+  setUnidadToEdit(prev => ({
+    ...prev,
+    mas_datos: {
+      ...(prev.mas_datos || {}),   // si es null, usa un objeto vacío
+      [field]: value
+    }
+  }));
 };
 
 
@@ -434,7 +547,7 @@ const handleAgregarUnidad = async (e) => {
           <tbody>
             {currentUnidades.map(u => (
               <tr key={u.id_unidad}>
-                <td>{u.id_unidad}</td>
+                <td>{u.cve}</td>
                 <td>{u.chofer_asignado}</td>
                 <td>{u.marca}</td>
                 <td>{u.vehiculo}</td>
@@ -522,161 +635,286 @@ const handleAgregarUnidad = async (e) => {
           <>
             <h2 style={{ textAlign: 'center' }}>Editar Unidad</h2>
 
-      <form onSubmit={handleUpdateUnidad} className="form-container">
+<form onSubmit={handleUpdateUnidad} className="form-container">
 
-  {/* ----------------------------- */}
-  {/* SELECCIÓN DE EMPRESA Y SUCURSAL */}
-  {/* ----------------------------- */}
-  <h4>Empresa y Sucursal</h4>
-<div className="form-group">
-  <label>Empresa</label>
-  <select
-    value={unidadToEdit.id_empresa || ""}
-    onChange={e => {
-      const empresaId = e.target.value;
-      setUnidadToEdit(prev => ({ ...prev, id_empresa: empresaId, sucursal: "" })); // resetear sucursal
-      setEmpresaSeleccionada(empresaId); // activa filtrado de sucursales
-    }}
-  >
-    <option value="">Seleccione una empresa</option>
-    {empresas.map(e => (
-      <option key={e.id_empresa} value={e.id_empresa}>
-        {e.razon_social}
-      </option>
-    ))}
-  </select>
-</div>
+     {/* SELECCIÓN DE EMPRESA Y SUCURSAL */}
+      <h4>Empresa y Sucursal</h4>
+      <div className="form-group">
+        <label>Empresa</label>
+        <select
+          value={unidadToEdit.id_empresa || ""}
+          onChange={e => {
+            const empresaId = e.target.value;
+            setUnidadToEdit(prev => ({
+              ...prev,
+              id_empresa: empresaId,
+              id_sucursal: ""
+            }));
+          }}
+          required
+        >
+          <option value="">Seleccione una empresa</option>
+          {empresas.map(e => (
+            <option key={e.id_empresa} value={e.id_empresa}>{e.nombre_comercial}</option>
+          ))}
+        </select>
+      </div>
 
-<div className="form-group">
-  <label>Sucursal</label>
-  <select
-    value={unidadToEdit.sucursal || ""}
-    onChange={e => setUnidadToEdit(prev => ({ ...prev, sucursal: e.target.value }))}
-    disabled={!empresaSeleccionada} // deshabilitado si no hay empresa seleccionada
-  >
-    <option value="">Seleccione una sucursal</option>
-    {sucursales.map(s => (
-      <option key={s.id_sucursal} value={s.id_sucursal}>
-        {s.nombre}
-      </option>
-    ))}
-  </select>
-</div>
+      <div className="form-group">
+        <label>Sucursal</label>
+        <select
+          value={unidadToEdit.id_sucursal || ""}
+          onChange={e => setUnidadToEdit(prev => ({ ...prev, id_sucursal: e.target.value }))}
+        >
+          <option value="">Seleccione una sucursal</option>
+          {sucursales.map(s => (
+            <option key={s.id_sucursal} value={s.id_sucursal}>
+              {s.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
 
-  {/* ----------------------------- */}
-  {/* DATOS DEL VEHÍCULO */}
-  {/* ----------------------------- */}
-  <h4>Datos del Vehículo</h4>
+      {/* DATOS DEL VEHÍCULO */}
+      <h4>Datos del Vehículo</h4>
+      <div className="form-row">
+        <div className="form-group">
+          <label>CVE</label>
+          <input
+            type="text"
+            value={unidadToEdit.cve || ""}
+            onChange={e => setUnidadToEdit({...unidadToEdit, cve: e.target.value})}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label>Marca</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.marca || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, marca: e.target.value})}
+            required 
+          />
+        </div>
+        <div className="form-group">
+          <label>Vehículo</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.version || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, version: e.target.value})} 
+            required 
+          />
+        </div>
+        <div className="form-group">
+          <label>Modelo</label>
+          <input 
+            type="number" 
+            value={unidadToEdit.modelo || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, modelo: e.target.value})}
+            required 
+          />
+        </div>
+        <div className="form-group">
+          <label>Tipo</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.tipo || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, tipo: e.target.value})} 
+          />
+        </div>
+      </div>
+
+      {/* MÁS DATOS */}
+      <h4>Más Datos</h4>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Motor</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.mas_datos?.motor || ""} 
+            onChange={e => handleMasDatosChange("motor", e.target.value)} 
+          />
+        </div>
+        <div className="form-group">
+          <label>Transmisión</label>
+          <select 
+            value={unidadToEdit.mas_datos?.transmision || ""} 
+            onChange={e => handleMasDatosChange("transmision", e.target.value)}
+          >
+            <option value="">Seleccione</option>
+            <option value="Automática">Automática</option>
+            <option value="Manual">Manual</option>
+            <option value="CVT">CVT</option>
+          </select>
+        </div>
+       <div className="form-group">
+        <label htmlFor="combustible">Combustible:</label>
+        <select
+        name="id_combustible"
+        value={unidadToEdit?.id_combustible || ""}
+        onChange={handleChange}
+      >
+        <option value="">Seleccione combustible</option>
+        {combustibles.map(c => (
+          <option key={c.id_combustible} value={c.id_combustible}>
+            {c.nombre}
+          </option>
+        ))}
+      </select>
+
+      </div>
+
+
+        <div className="form-group">
+          <label>Color</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.mas_datos?.color || ""} 
+            onChange={e => handleMasDatosChange("color", e.target.value)} 
+          />
+        </div>
+      </div>
+
+
+
   <div className="form-row">
-    <div className="form-group">
-      <label>Marca</label>
-      <input type="text" name="marca" value={unidadToEdit.marca || ""} onChange={e => setUnidadToEdit({...unidadToEdit, marca: e.target.value})} required />
-    </div>
-    <div className="form-group">
-      <label>Vehículo</label>
-      <input type="text" name="vehiculo" value={unidadToEdit.vehiculo || ""} onChange={e => setUnidadToEdit({...unidadToEdit, vehiculo: e.target.value})} required />
-    </div>
-    <div className="form-group">
-      <label>Modelo</label>
-      <input type="number" name="modelo" value={unidadToEdit.modelo || ""} onChange={e => setUnidadToEdit({...unidadToEdit, modelo: e.target.value})} required />
-    </div>
-  </div>
-
-  <div className="form-row">
-    <div className="form-group">
-      <label>Clase Tipo</label>
-      <input type="text" value={unidadToEdit.mas_datos?.clase_tipo || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, clase_tipo: e.target.value}})} />
-    </div>
     <div className="form-group">
       <label>NIV</label>
-        <input type="text" value={unidadToEdit.niv || ""} onChange={e => setUnidadToEdit({...unidadToEdit, niv: e.target.value})} />
-    </div>
-    <div className="form-group">
-      <label>Motor</label>
-      <input type="text" value={unidadToEdit.mas_datos?.motor || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, motor: e.target.value}})} />
-    </div>
-  </div>
-
-  <div className="form-row">
-    <div className="form-group">
-      <label>Transmisión</label>
-      <select value={unidadToEdit.mas_datos?.transmision || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, transmision: e.target.value}})}>
-        <option value="">Seleccione</option>
-        <option value="Automática">Automática</option>
-        <option value="Manual">Manual</option>
-        <option value="CVT">CVT</option>
-      </select>
-    </div>
-    <div className="form-group">
-      <label>Combustible</label>
-      <select value={unidadToEdit.mas_datos?.combustible || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, combustible: e.target.value}})}>
-        <option value="">Seleccione</option>
-        <option value="Gasolina">Gasolina</option>
-        <option value="Diésel">Diésel</option>
-        <option value="Eléctrico">Eléctrico</option>
-        <option value="Híbrido">Híbrido</option>
-      </select>
-    </div>
-    <div className="form-group">
-      <label>Color</label>
-      <input type="text" value={unidadToEdit.mas_datos?.color || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, color: e.target.value}})} />
-    </div>
-  </div>
-
-  <div className="form-row">
-    <div className="form-group">
-      <label>Fecha Adquisición</label>
-      <input type="date" value={unidadToEdit.fecha_adquisicion || ""} onChange={e => setUnidadToEdit({...unidadToEdit, fecha_adquisicion: e.target.value})} />
+      <input type="text" value={unidadToEdit.niv || ""} 
+             onChange={e => setUnidadToEdit({...unidadToEdit, niv: e.target.value})} />
     </div>
     <div className="form-group">
       <label>Propietario</label>
-      <input type="text" value={unidadToEdit.mas_datos?.propietario || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, propietario: e.target.value}})} />
+      <input type="text" value={unidadToEdit.mas_datos?.propietario || ""} 
+             onChange={e => handleMasDatosChange("propietario", e.target.value)} />
     </div>
     <div className="form-group">
       <label>Compra o Arrendado</label>
-      <input type="text" value={unidadToEdit.mas_datos?.compra_arrendado || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, compra_arrendado: e.target.value}})} />
+      <input type="text" value={unidadToEdit.mas_datos?.compra_arrendado || ""} 
+             onChange={e => handleMasDatosChange("compra_arrendado", e.target.value)} />
+    </div>
+    <div className="form-group">
+      <label>Fecha Adquisición</label>
+      <input type="date" value={unidadToEdit.fecha_adquisicion || ""} 
+             onChange={e => setUnidadToEdit({...unidadToEdit, fecha_adquisicion: e.target.value})} />
     </div>
   </div>
 
+  {/* ============================= */}
   {/* DOCUMENTOS Y VALORES */}
+  {/* ============================= */}
   <div className="form-row">
     <div className="form-group">
       <label>Foto de la Unidad</label>
-      <input type="file" accept="image/*" onChange={(e) => setFotoUnidad(e.target.files[0])} />
+      <input type="file" accept="image/*" onChange={e => setFotoUnidad(e.target.files[0])} />
     </div>
     <div className="form-group">
       <label>Factura (PDF)</label>
-      <input type="file" accept="application/pdf" onChange={(e) => setPdfFactura(e.target.files[0])} />
+      <input type="file" accept="application/pdf" onChange={e => setPdfFactura(e.target.files[0])} />
     </div>
     <div className="form-group">
       <label>Valor Factura</label>
-      <input type="number" step="0.01" value={unidadToEdit.valor_factura || ""} onChange={e => setUnidadToEdit({...unidadToEdit, valor_factura: e.target.value})} />
+      <input type="number" step="0.01" value={unidadToEdit.valor_factura || ""} 
+             onChange={e => setUnidadToEdit({...unidadToEdit, valor_factura: e.target.value})} />
     </div>
-  </div>
-
-  <div className="form-row">
     <div className="form-group">
       <label>Kilometraje actual</label>
-      <input type="number" value={unidadToEdit.kilometraje_actual || ""} onChange={e => setUnidadToEdit({...unidadToEdit, kilometraje_actual: e.target.value})} />
+      <input type="number" value={unidadToEdit.kilometraje_actual || ""} 
+             onChange={e => setUnidadToEdit({...unidadToEdit, kilometraje_actual: e.target.value})} />
     </div>
   </div>
 
-  {/* GPS */}
+{/* ============================= */}
+{/* COMBUSTIBLE Y TANQUE */}
+{/* ============================= */}
+<h4>Combustible y Tanque</h4>
+<div className="form-row">
+  <div className="form-group">
+    <label>Litros actuales</label>
+    <input
+      type="number"
+      step="0.01"
+      value={unidadToEdit.litros_actuales || ""}
+      onChange={e => handleMasDatosChange("litros_actuales", e.target.value)}
+    />
+  </div>
+  <div className="form-group">
+    <label>Tolerancia</label>
+    <input
+      type="number"
+      step="0.01"
+      value={unidadToEdit.tolerancia || ""}
+      onChange={e => handleMasDatosChange("tolerancia", e.target.value)}
+    />
+  </div>
+  <div className="form-group">
+    <label>Capacidad de Tanque</label>
+    <input
+      type="number"
+      step="0.01"
+      value={unidadToEdit.capacidad_tanque || ""}
+      onChange={e => handleMasDatosChange("capacidad_tanque", e.target.value)}
+    />
+  </div>
+  <div className="form-group">
+    <label>Kilometraje por Litro</label>
+    <input
+      type="number"
+      step="0.01"
+      value={unidadToEdit.kilometraje_por_litro || ""}
+      onChange={e => handleMasDatosChange("kilometraje_por_litro", e.target.value)}
+    />
+  </div>
+</div>
+
+<div className="form-row">
+  <div className="form-group">
+    <label>Selecciona si será utilitario</label>
+
+    <label className="check-btn">
+  <input
+  type="checkbox"
+  checked={(unidadToEdit.mas_datos?.es_utilitario || "No Utilitario") === "Utilitario"}
+  onChange={(e) =>
+    handleMasDatosChange(
+      "es_utilitario",
+      e.target.checked ? "Utilitario" : "No Utilitario"
+    )
+  }
+/>
+
+<span className="check-label">
+  {(unidadToEdit.mas_datos?.es_utilitario || "No Utilitario") === "Utilitario"
+    ? "Utilitario"
+    : "No utilitario"}
+</span>
+
+</label>
+
+  </div>
+</div>
+  {/* ============================= */}
+  {/* DATOS GPS */}
+  {/* ============================= */}
   <h4>Datos de Navegación (GPS)</h4>
   <div className="form-row">
     <div className="form-group">
       <label>Teléfono GPS</label>
-      <input type="text" value={unidadToEdit.mas_datos?.telefono_gps || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, telefono_gps: e.target.value}})} />
+      <input type="text" value={unidadToEdit.mas_datos?.telefono_gps || ""} 
+             onChange={e => handleMasDatosChange("telefono_gps", e.target.value)} />
     </div>
     <div className="form-group">
       <label>SIM GPS</label>
-      <input type="text" value={unidadToEdit.mas_datos?.sim_gps || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, sim_gps: e.target.value}})} />
+      <input type="text" value={unidadToEdit.mas_datos?.sim_gps || ""} 
+             onChange={e => handleMasDatosChange("sim_gps", e.target.value)} />
     </div>
     <div className="form-group">
       <label>UID</label>
-      <input type="text" value={unidadToEdit.mas_datos?.uid || ""} onChange={e => setUnidadToEdit({...unidadToEdit, mas_datos: {...unidadToEdit.mas_datos, uid: e.target.value}})} />
+      <input type="text" value={unidadToEdit.mas_datos?.uid || ""} 
+             onChange={e => handleMasDatosChange("uid", e.target.value)} />
     </div>
   </div>
+
 
   <button type="submit" className="btn-save">Guardar Cambios</button>
 </form>
@@ -689,11 +927,12 @@ const handleAgregarUnidad = async (e) => {
         FORMULARIO (agregar unidad)
         ========================= */}
 
+
 <form onSubmit={handleAgregarUnidad} className="form-container">
 
-  {/* ----------------------------- */}
+  {/* ========================= */}
   {/* SELECCIÓN DE EMPRESA Y SUCURSAL */}
-  {/* ----------------------------- */}
+  {/* ========================= */}
   <h4>Empresa y Sucursal</h4>
   <div className="form-group">
     <label>Empresa</label>
@@ -701,14 +940,15 @@ const handleAgregarUnidad = async (e) => {
       value={nuevaUnidad.id_empresa || ""}
       onChange={e => {
         const empresaId = e.target.value;
-        setNuevaUnidad(prev => ({ ...prev, id_empresa: empresaId, sucursal: "" }));
+        setNuevaUnidad(prev => ({ ...prev, id_empresa: empresaId, id_sucursal: "" }));
         setEmpresaSeleccionada(empresaId);
       }}
+      required
     >
       <option value="">Seleccione una empresa</option>
       {empresas.map(e => (
         <option key={e.id_empresa} value={e.id_empresa}>
-          {e.razon_social}
+          {e.nombre_comercial}
         </option>
       ))}
     </select>
@@ -717,9 +957,14 @@ const handleAgregarUnidad = async (e) => {
   <div className="form-group">
     <label>Sucursal</label>
     <select
-      value={nuevaUnidad.sucursal || ""}
-      onChange={e => setNuevaUnidad(prev => ({ ...prev, sucursal: e.target.value }))}
-      disabled={!empresaSeleccionada}
+      value={unidadToEdit ? unidadToEdit.sucursal : nuevaUnidad.id_sucursal}
+      onChange={e => {
+        if (unidadToEdit) {
+          setUnidadToEdit(prev => ({ ...prev, sucursal: e.target.value }));
+        } else {
+          setNuevaUnidad(prev => ({ ...prev, id_sucursal: e.target.value }));
+        }
+      }}
     >
       <option value="">Seleccione una sucursal</option>
       {sucursales.map(s => (
@@ -730,41 +975,112 @@ const handleAgregarUnidad = async (e) => {
     </select>
   </div>
 
-  {/* ----------------------------- */}
+  {/* ========================= */}
   {/* DATOS DEL VEHÍCULO */}
-  {/* ----------------------------- */}
+  {/* ========================= */}
   <h4>Datos del Vehículo</h4>
   <div className="form-row">
     <div className="form-group">
-      <label>Marca</label>
-      <input type="text" name="marca" value={nuevaUnidad.marca || ""} onChange={handleChangeNuevaUnidad} required />
+      <label>CVE</label>
+      <input
+        type="text"
+        name="cve"
+        placeholder="Ej: ABC123XYZ"
+        value={nuevaUnidad.cve || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
     </div>
     <div className="form-group">
-      <label>Vehículo</label>
-      <input type="text" name="vehiculo" value={nuevaUnidad.vehiculo || ""} onChange={handleChangeNuevaUnidad} required />
+      <label>Marca</label>
+      <input
+        type="text"
+        name="marca"
+        placeholder="Ej: Volkswagen"
+        value={nuevaUnidad.marca || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
+    </div>
+    <div className="form-group">
+      <label>Versión</label>
+      <input
+        type="text"
+        name="version"
+        placeholder="Ej: Saveiro"
+        value={nuevaUnidad.version || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Año</label>
+      <input
+        type="number"
+        name="año"
+        placeholder="Ej: 2020"
+        value={nuevaUnidad.año || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
+    </div>
+  </div>
+
+  <div className="form-row">
+    <div className="form-group">
+      <label>Tipo</label>
+      <input
+        type="text"
+        name="tipo"
+        placeholder="Ej: Camioneta"
+        value={nuevaUnidad.tipo || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Clase</label>
+      <input
+        type="text"
+        name="clase"
+        placeholder="Ej: Pickup"
+        value={nuevaUnidad.clase || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
     <div className="form-group">
       <label>Modelo</label>
-      <input type="number" name="modelo" value={nuevaUnidad.modelo || ""} onChange={handleChangeNuevaUnidad} required />
+      <input
+        type="text"
+        name="modelo"
+        placeholder="Ej: 2020"
+        value={nuevaUnidad.modelo || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
     </div>
   </div>
 
   <div className="form-row">
     <div className="form-group">
-      <label>Clase Tipo</label>
-      <input type="text" name="clase_tipo" value={nuevaUnidad.clase_tipo || ""} onChange={handleChangeNuevaUnidad} />
-    </div>
-    <div className="form-group">
       <label>NIV</label>
-      <input type="text" name="niv" value={nuevaUnidad.niv || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="niv"
+        placeholder="Ej: 1HGCM82633A004352"
+        value={nuevaUnidad.niv || ""}
+        onChange={handleChangeNuevaUnidad}
+        required
+      />
     </div>
     <div className="form-group">
       <label>Motor</label>
-      <input type="text" name="motor" value={nuevaUnidad.motor || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="motor"
+        placeholder="Ej: 1.8L 4 cilindros"
+        value={nuevaUnidad.motor || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
-  </div>
-
-  <div className="form-row">
     <div className="form-group">
       <label>Transmisión</label>
       <select name="transmision" value={nuevaUnidad.transmision || ""} onChange={handleChangeNuevaUnidad}>
@@ -774,38 +1090,122 @@ const handleAgregarUnidad = async (e) => {
         <option value="CVT">CVT</option>
       </select>
     </div>
-    <div className="form-group">
-      <label>Combustible</label>
-      <select name="combustible" value={nuevaUnidad.combustible || ""} onChange={handleChangeNuevaUnidad}>
-        <option value="">Seleccione</option>
-        <option value="Gasolina">Gasolina</option>
-        <option value="Diésel">Diésel</option>
-        <option value="Eléctrico">Eléctrico</option>
-        <option value="Híbrido">Híbrido</option>
-      </select>
-    </div>
-    <div className="form-group">
-      <label>Color</label>
-      <input type="text" name="color" value={nuevaUnidad.color || ""} onChange={handleChangeNuevaUnidad} />
-    </div>
   </div>
 
   <div className="form-row">
+<div className="form-group">
+  <label htmlFor="combustible">Combustible:</label>
+  <select
+    id="combustible"
+    name="id_combustible"
+    value={nuevaUnidad.id_combustible || ""}
+    onChange={(e) =>
+      setNuevaUnidad(prev => ({ ...prev, id_combustible: e.target.value }))
+    }
+    required
+  >
+    <option value="">Selecciona un combustible</option>
+    {combustibles.map((c) => (
+      <option key={c.id_combustible} value={c.id_combustible}>
+        {c.nombre}
+      </option>
+    ))}
+  </select>
+</div>
+
+
     <div className="form-group">
-      <label>Fecha Adquisición</label>
-      <input type="date" name="fecha_adquisicion" value={nuevaUnidad.fecha_adquisicion || ""} onChange={handleChangeNuevaUnidad} />
+      <label>Color</label>
+      <input
+        type="text"
+        name="color"
+        placeholder="Ej: Rojo"
+        value={nuevaUnidad.color || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
     <div className="form-group">
+      <label>Fecha de adquisición</label>
+      <input
+        type="date"
+        name="fecha_adquisicion"
+        value={nuevaUnidad.fecha_adquisicion || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+  </div>
+  <div className="form-row">
+    <div className="form-group">
       <label>Propietario</label>
-      <input type="text" name="propietario" value={nuevaUnidad.propietario || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="propietario"
+        placeholder="Ej: Juan Pérez"
+        value={nuevaUnidad.propietario || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
     <div className="form-group">
       <label>Compra o Arrendado</label>
-      <input type="text" name="compra_arrendado" value={nuevaUnidad.compra_arrendado || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="compra_arrendado"
+        placeholder="Ej: Compra"
+        value={nuevaUnidad.compra_arrendado || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Litros actuales en el tanque</label>
+      <input
+        type="number"
+        step="0.01"
+        name="litros_actuales"
+        placeholder="Ej: 40.50"
+        value={nuevaUnidad.litros_actuales || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
   </div>
-
+  <div className="form-row">
+    
+    <div className="form-group">
+      <label>Capacidad de Tanque</label>
+      <input
+        type="number"
+        step="0.01"
+        name="capacidad_tanque"
+        placeholder="Ej: 50.00"
+        value={nuevaUnidad.capacidad_tanque || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Kilometraje por Litro</label>
+      <input
+        type="number"
+        step="0.01"
+        name="kilometraje_por_litro"
+        placeholder="Ej: 12.5"
+        value={nuevaUnidad.kilometraje_por_litro || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+    <div className="form-group">
+      <label>Tolerancia por litro</label>
+      <input
+        type="number"
+        step="0.01"
+        name="tolerancia"
+        placeholder="Ej: 1.5"
+        value={nuevaUnidad.tolerancia || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
+    </div>
+  </div>
+  {/* ========================= */}
   {/* DOCUMENTOS Y VALORES */}
+  {/* ========================= */}
   <div className="form-row">
     <div className="form-group">
       <label>Foto de la Unidad</label>
@@ -813,39 +1213,103 @@ const handleAgregarUnidad = async (e) => {
     </div>
     <div className="form-group">
       <label>Factura (PDF)</label>
-      <input type="file" accept="application/pdf" onChange={(e) => setPdfFactura(e.target.files[0])} />
+      <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfFactura(e.target.files[0])} />
     </div>
     <div className="form-group">
       <label>Valor Factura</label>
-      <input type="number" step="0.01" name="valor_factura" value={nuevaUnidad.valor_factura || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="number"
+        step="0.01"
+        name="valor_factura"
+        placeholder="Ej: 350000.00"
+        value={nuevaUnidad.valor_factura || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
-  </div>
 
+
+  </div>
   <div className="form-row">
-    <div className="form-group">
+        <div className="form-group">
       <label>Kilometraje actual</label>
-      <input type="number" name="kilometraje_actual" value={nuevaUnidad.kilometraje_actual || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="number"
+        name="kilometraje_actual"
+        placeholder="Ej: 12000"
+        value={nuevaUnidad.kilometraje_actual || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
-  </div>
+    {/* ========================= */}
+    {/* UTILITARIO */}
+    {/* ========================= */}
+    <div className="form-group">
+      <label htmlFor="">Selecciona si sera utilitario</label>
+      <label className="check-btn">
+        <input 
+          type="checkbox"
+          checked={nuevaUnidad.es_utilitario === "Utilitario"}
+          onChange={(e) =>
+            setNuevaUnidad(prev => ({
+              ...prev,
+              es_utilitario: e.target.checked ? "Utilitario" : "No Utilitario"
+            }))
+          }
+        />
 
+        <span className="check-label">
+          {nuevaUnidad.es_utilitario === "Utilitario" ? "Utilitario" : "No utilitario"}
+        </span>
+      </label>
+    </div>
+
+      </div>
+  
+
+  {/* ========================= */}
   {/* GPS */}
+  {/* ========================= */}
   <h4>Datos de Navegación (GPS)</h4>
   <div className="form-row">
     <div className="form-group">
       <label>Teléfono GPS</label>
-      <input type="text" name="telefono_gps" value={nuevaUnidad.telefono_gps || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="telefono_gps"
+        placeholder="Ej: 5512345678"
+        value={nuevaUnidad.telefono_gps || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
     <div className="form-group">
       <label>SIM GPS</label>
-      <input type="text" name="sim_gps" value={nuevaUnidad.sim_gps || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="sim_gps"
+        placeholder="Ej: 8901234567890123456"
+        value={nuevaUnidad.sim_gps || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
     <div className="form-group">
       <label>UID</label>
-      <input type="text" name="uid" value={nuevaUnidad.uid || ""} onChange={handleChangeNuevaUnidad} />
+      <input
+        type="text"
+        name="uid"
+        placeholder="Ej: ABC123UID"
+        value={nuevaUnidad.uid || ""}
+        onChange={handleChangeNuevaUnidad}
+      />
     </div>
   </div>
 
+
+
+
+
+  {/* ========================= */}
   {/* PLACAS (opcional) */}
+  {/* ========================= */}
   <h3>Placas (Opcional)</h3>
   <div className="form-group">
     <label>
@@ -859,11 +1323,23 @@ const handleAgregarUnidad = async (e) => {
       <div className="form-row">
         <div className="form-group">
           <label>Placa</label>
-          <input type="text" name="placa" value={nuevaUnidad.placa || ""} onChange={handleChangeNuevaUnidad} />
+          <input
+            type="text"
+            name="placa"
+            placeholder="Ej: ABC1234"
+            value={nuevaUnidad.placa || ""}
+            onChange={handleChangeNuevaUnidad}
+          />
         </div>
         <div className="form-group">
           <label>Folio de la tarjeta de circulación</label>
-          <input type="text" name="folio" value={nuevaUnidad.folio || ""} onChange={handleChangeNuevaUnidad} />
+          <input
+            type="text"
+            name="folio"
+            placeholder="Ej: 987654321"
+            value={nuevaUnidad.folio || ""}
+            onChange={handleChangeNuevaUnidad}
+          />
         </div>
       </div>
 
@@ -881,28 +1357,32 @@ const handleAgregarUnidad = async (e) => {
       <div className="form-row">
         <div className="form-group">
           <label>Monto Pago de las placas</label>
-          <input type="number" name="monto_pago" value={nuevaUnidad.monto_pago || ""} onChange={handleChangeNuevaUnidad} />
+          <input
+            type="number"
+            name="monto_pago"
+            placeholder="Ej: 1500"
+            value={nuevaUnidad.monto_pago || ""}
+            onChange={handleChangeNuevaUnidad}
+          />
         </div>
-         <div className="form-group">
+        <div className="form-group">
           <label>Comprobante del Pago (PDF)</label>
-          <input type="file" accept="application/pdf" onChange={(e) => setComprobantePago(e.target.files[0])} />
+          <input type="file" accept="image/*,application/pdf" onChange={(e) => setComprobantePago(e.target.files[0])} />
         </div>
         <div className="form-group">
           <label>PDF Placa Frontal</label>
-          <input type="file" accept="application/pdf" onChange={(e) => setPdfFrontal(e.target.files[0])} />
+          <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfFrontal(e.target.files[0])} />
         </div>
       </div>
 
       <div className="form-row">
-        
         <div className="form-group">
           <label>PDF Placa Trasera</label>
-          <input type="file" accept="application/pdf" onChange={(e) => setPdfTrasero(e.target.files[0])} />
+          <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfTrasero(e.target.files[0])} />
         </div>
-       
         <div className="form-group">
           <label>Tarjeta de Circulación (PDF)</label>
-          <input type="file" accept="application/pdf" onChange={(e) => setTarjetaCirculacion(e.target.files[0])} />
+          <input type="file" accept="image/*,application/pdf" onChange={(e) => setTarjetaCirculacion(e.target.files[0])} />
         </div>
       </div>
     </>
@@ -911,10 +1391,6 @@ const handleAgregarUnidad = async (e) => {
   <button type="submit" className="btn-save">Agregar Unidad</button>
 </form>
 
-
-
-       
-          
         </>
       ) :(
           <>

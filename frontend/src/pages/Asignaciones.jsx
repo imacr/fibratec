@@ -6,71 +6,143 @@ import "./Unidades.css";
 export default function AsignacionesActivas() {
   const [asignaciones, setAsignaciones] = useState([]);
   const [choferes, setChoferes] = useState([]);
-  const [unidades, setUnidades] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [administradores, setAdministradores] = useState([]);
+  const [unidadesUsuario, setUnidadesUsuario] = useState([]);
+  const [unidadesChofer, setUnidadesChofer] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
   const [choferSeleccionado, setChoferSeleccionado] = useState("");
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState("");
   const [unidadSeleccionada, setUnidadSeleccionada] = useState("");
-const [unidadesLibres, setUnidadesLibres] = useState([]); // solo libres
 
+  // ---------------- PAGINACIÓN ----------------
+  const [itemsPorPagina, setItemsPorPagina] = useState(10);
+  const [paginaActual, setPaginaActual] = useState(1);
 
+  const indexInicio = itemsPorPagina === "all"
+    ? 0
+    : (paginaActual - 1) * itemsPorPagina;
 
-const fetchDatos = async () => {
-  try {
-    const [resAsign, resChofer, resUnidades, resLibres] = await Promise.all([
-      fetch(`${API_URL}/asignaciones`),
-      fetch(`${API_URL}/choferes`),
-      fetch(`${API_URL}/unidades`),          // todas
-      fetch(`${API_URL}/unidades/libres`)    // solo libres
-    ]);
+  const indexFin = itemsPorPagina === "all"
+    ? asignaciones.length
+    : indexInicio + itemsPorPagina;
 
-    const [asignData, choferData, unidadesData, libresData] = await Promise.all([
-      resAsign.json(),
-      resChofer.json(),
-      resUnidades.json(),
-      resLibres.json()
-    ]);
+  const asignacionesPaginadas = itemsPorPagina === "all"
+    ? asignaciones
+    : asignaciones.slice(indexInicio, indexFin);
 
-    setAsignaciones(asignData);
-    setChoferes(choferData);
-    setUnidades(unidadesData);       // tabla
-    setUnidadesLibres(libresData);   // select
-  } catch (err) {
-    console.error(err);
-    Swal.fire("Error", "No se pudieron cargar los datos", "error");
-  } finally {
-    setLoading(false);
-  }
-};
+  const totalPaginas = itemsPorPagina === "all"
+    ? 1
+    : Math.ceil(asignaciones.length / itemsPorPagina);
 
+  const fetchDatos = async () => {
+    try {
+      const [
+        resAsign,
+        resChofer,
+        resUsuarios,
+        resUsuarioLibre,
+        resChoferLibre
+      ] = await Promise.all([
+        fetch(`${API_URL}/asignaciones`),
+        fetch(`${API_URL}/choferes`),
+        fetch(`${API_URL}/api/usuarios/admins`),
+        fetch(`${API_URL}/unidades/libres_usuario`),
+        fetch(`${API_URL}/unidades/libres_chofer`)
+      ]);
+
+      const [
+        asignData,
+        choferData,
+        usuariosData,
+        libresUsuarioData,
+        libresChoferData
+      ] = await Promise.all([
+        resAsign.json(),
+        resChofer.json(),
+        resUsuarios.json(),
+        resUsuarioLibre.json(),
+        resChoferLibre.json()
+      ]);
+      
+      setAsignaciones(
+        asignData.map(a => {
+          const chofer = choferData.find(c => c.id_chofer === a.id_chofer);
+          const usuario = usuariosData.find(u => u.id_usuario === a.id_usuario);
+
+          return {
+            ...a,
+            nombre_asignado: chofer?.nombre || usuario?.nombre || "Desconocido"
+          };
+        })
+      );
+
+      setChoferes(choferData);
+      setUsuarios(usuariosData);
+      setUnidadesUsuario(libresUsuarioData);
+      setUnidadesChofer(libresChoferData);
+
+      const admins = usuariosData.filter(
+        u => !choferData.some(c => c.id_usuario === u.id_usuario)
+      );
+      setAdministradores(admins);
+
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Error", "No se pudieron cargar los datos", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => { fetchDatos(); }, []);
 
-  const asignarChofer = async () => {
-    if (!choferSeleccionado || !unidadSeleccionada) {
-      Swal.fire("Atención", "Selecciona chofer y unidad", "warning");
+  const unidadesFiltradas = () => {
+    if (choferSeleccionado) return unidadesChofer;
+    if (usuarioSeleccionado) return unidadesUsuario;
+    return [];
+  };
+
+  const asignar = async () => {
+    if (!unidadSeleccionada) {
+      Swal.fire("Atención", "Selecciona una unidad", "warning");
       return;
     }
 
+    if (!choferSeleccionado && !usuarioSeleccionado) {
+      Swal.fire("Atención", "Selecciona un chofer o un usuario", "warning");
+      return;
+    }
 
+    if (choferSeleccionado && usuarioSeleccionado) {
+      Swal.fire("Atención", "Solo puedes elegir uno: chofer o usuario", "warning");
+      return;
+    }
+
+    const payload = {
+      id_unidad: unidadSeleccionada,
+      id_chofer: choferSeleccionado || null,
+      id_usuario: usuarioSeleccionado || null
+    };
 
     try {
       const res = await fetch(`${API_URL}/asignaciones`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id_chofer: choferSeleccionado,
-          id_unidad: unidadSeleccionada,
-          usuario: "admin"
-        })
+        body: JSON.stringify(payload)
       });
+
       const data = await res.json();
       if (res.ok) Swal.fire("Éxito", data.message, "success");
       else Swal.fire("Error", data.error, "error");
 
       setChoferSeleccionado("");
+      setUsuarioSeleccionado("");
       setUnidadSeleccionada("");
       fetchDatos();
+
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "No se pudo asignar", "error");
@@ -84,10 +156,13 @@ const fetchDatos = async () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario: "admin" })
       });
+
       const data = await res.json();
       if (res.ok) Swal.fire("Éxito", data.message, "success");
       else Swal.fire("Error", data.error, "error");
+
       fetchDatos();
+
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "No se pudo finalizar asignación", "error");
@@ -96,65 +171,78 @@ const fetchDatos = async () => {
 
   if (loading) return <p>Cargando datos...</p>;
 
-  // Filtramos choferes que no tengan asignación activa
-  const choferesDisponibles = choferes.filter(
-    c => !asignaciones.some(a => a.id_chofer === c.id_chofer && !a.fecha_fin)
-  );
-
-  // Funciones para mostrar nombre completo
-  const nombreChofer = id => choferes.find(c => c.id_chofer === id)?.nombre || id;
-const nombreUnidad = (id) => {
-  const u = unidades.find((u) => u.id_unidad === id);
-  return u
-    ? `${u.id_unidad} - ${u.vehiculo} (${u.placa || "Sin placa"})`
-    : id;
-};
-
-
   return (
     <div className="unidades-container">
       <h2>Asignaciones Activas</h2>
 
-      <h4 style={{ marginTop: "30px" }}>Asignar Chofer a Unidad</h4>
-      <div className="asignar-form" style={{
-        display: "flex",
-        gap: "10px",
-        flexWrap: "wrap",
-        alignItems: "center",
-        marginTop: "10px",
-        padding: "15px",
-        border: "1px solid #ccc",
-        borderRadius: "8px",
-        backgroundColor: "#f9f9f9"
-      }}>
-       <select
-        value={choferSeleccionado}
-        onChange={e => setChoferSeleccionado(e.target.value)}
-        style={{ padding: "8px", borderRadius: "5px", minWidth: "200px" }}
+      <h4 style={{ marginTop: "30px" }}>Nueva asignación</h4>
+
+      <div className="asignar-form"
+        style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          alignItems: "center",
+          marginTop: "10px",
+          padding: "15px",
+          border: "1px solid #ccc",
+          borderRadius: "8px",
+          backgroundColor: "#f9f9f9"
+        }}
       >
-        <option value="">--Selecciona Chofer--</option>
-        {choferes.map(c => (
-          <option key={c.id_chofer} value={c.id_chofer}>{c.nombre}</option>
-        ))}
-      </select>
 
-
+        {/* SELECT CHOFER */}
         <select
-        value={unidadSeleccionada}
-        onChange={(e) => setUnidadSeleccionada(e.target.value)}
-        style={{ padding: "8px", borderRadius: "5px", minWidth: "200px" }}
-      >
-        <option value="">--Selecciona Unidad--</option>
-        {unidadesLibres.map((u) => (
-          <option key={u.id_unidad} value={u.id_unidad}>
-            {u.id_unidad} - {u.nombre}
-          </option>
-        ))}
-      </select>
+          value={choferSeleccionado}
+          onChange={e => {
+            setChoferSeleccionado(e.target.value);
+            setUsuarioSeleccionado("");
+            setUnidadSeleccionada("");
+          }}
+          style={{ padding: "8px", borderRadius: "5px", minWidth: "200px" }}
+        >
+          <option value="">--Asignar a Chofer--</option>
+          {choferes.map(c => (
+            <option key={c.id_chofer} value={c.id_chofer}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
 
+        {/* SELECT USUARIO */}
+        <select
+          value={usuarioSeleccionado}
+          onChange={e => {
+            setUsuarioSeleccionado(e.target.value);
+            setChoferSeleccionado("");
+            setUnidadSeleccionada("");
+          }}
+          style={{ padding: "8px", borderRadius: "5px", minWidth: "200px" }}
+        >
+          <option value="">--Asignar a Administrador --</option>
+          {administradores.map(u => (
+            <option key={u.id_usuario} value={u.id_usuario}>
+              {u.nombre}
+            </option>
+          ))}
+        </select>
+
+        {/* SELECT UNIDAD */}
+        <select
+          value={unidadSeleccionada}
+          onChange={e => setUnidadSeleccionada(e.target.value)}
+          style={{ padding: "8px", borderRadius: "5px", minWidth: "200px" }}
+        >
+          <option value="">--Selecciona Unidad--</option>
+          {unidadesFiltradas().map(u => (
+            <option key={u.id_unidad} value={u.id_unidad}>
+              {u.id_unidad} - {u.nombre}
+            </option>
+          ))}
+        </select>
 
         <button
-          onClick={asignarChofer}
+          onClick={asignar}
           style={{
             padding: "8px 15px",
             backgroundColor: "#4caf50",
@@ -168,40 +256,119 @@ const nombreUnidad = (id) => {
         </button>
       </div>
 
-      <table className="elegant-table" style={{ marginTop: "20px" }}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Chofer</th>
-            <th>Unidad</th>
-            <th>Fecha Asignación</th>
-            <th>Fecha Fin</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {asignaciones.length > 0 ? asignaciones.map(a => (
-            <tr key={a.id_asignacion}>
-              <td>{a.id_asignacion}</td>
-              <td>{nombreChofer(a.id_chofer)}</td>
-              <td>{nombreUnidad(a.id_unidad)}</td>
-              <td>{a.fecha_asignacion}</td>
-              <td>{a.fecha_fin || "-"}</td>
-              <td>
+      {/* ---------------- SELECT DE MOSTRAR X ---------------- */}
+      <div style={{ marginTop: "25px", marginBottom: "10px" }}>
+        <label>Mostrar: </label>
+        <select
+          value={itemsPorPagina}
+          onChange={e => {
+            const val = e.target.value === "all" ? "all" : parseInt(e.target.value);
+            setItemsPorPagina(val);
+            setPaginaActual(1);
+          }}
+          style={{ padding: "6px", borderRadius: "5px" }}
+        >
+          <option value={5}>5</option>
+          <option value={10}>10</option>
+          <option value={20}>20</option>
+          <option value={50}>50</option>
+          <option value="all">Todos</option>
+        </select>
+      </div>
+
+      <div className="table-wrapper">
+        <table className="elegant-table" style={{ marginTop: "20px" }}>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Asignado a</th>
+              <th>Unidad</th>
+              <th>Fecha Asignación</th>
+              <th>Fecha Fin</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {asignacionesPaginadas.length > 0 ? asignacionesPaginadas.map(a => (
+              <tr key={a.id_asignacion}>
+                <td>{a.id_asignacion}</td>
+                <td>{a.nombre_asignado}</td>
+                <td>{a.cve} {a.marca} {a.version}</td>
+                <td>{a.fecha_asignacion}</td>
+                <td>{a.fecha_fin || "-"}</td>
+                <td>
+                  {!a.fecha_fin ? (
+                    <button
+                      className="btn-finalizar"
+                      onClick={() => finalizarAsignacion(a.id_asignacion)}
+                    >
+                      Desasignar
+                    </button>
+                  ) : (
+                    <span>Finalizada</span>
+                  )}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="6" style={{ textAlign: "center" }}>
+                  No hay asignaciones
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ---------------- PAGINACIÓN ---------------- */}
+      {itemsPorPagina !== "all" && (
+        <div className="pagination">
+          <button
+            onClick={() => setPaginaActual(p => Math.max(p - 1, 1))}
+            disabled={paginaActual === 1}
+          >
+            <i className="fa-solid fa-arrow-left"></i>
+          </button>
+
+          <span>Página {paginaActual} de {totalPaginas}</span>
+
+          <button
+            onClick={() => setPaginaActual(p => Math.min(p + 1, totalPaginas))}
+            disabled={paginaActual === totalPaginas}
+          >
+            <i className="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      )}
+
+      <div className="card-wrapper">
+        {asignacionesPaginadas.length === 0 ? (
+          <p className="mensaje-estado">No hay asignaciones</p>
+        ) : (
+          asignacionesPaginadas.map(a => (
+            <div key={a.id_asignacion} className="unidad-card">
+              <h3>Asignación #{a.id_asignacion}</h3>
+              <p><b>Asignado a:</b> {a.nombre_asignado}</p>
+              <p><b>Unidad:</b> {a.cve} {a.marca} {a.version}</p>
+              <p><b>Fecha Asignación:</b> {a.fecha_asignacion}</p>
+              <p><b>Fecha Fin:</b> {a.fecha_fin || "-"}</p>
+              <div className="actions-container">
                 {!a.fecha_fin ? (
-                  <button className="btn-finalizar" onClick={() => finalizarAsignacion(a.id_asignacion)}>Desasignar</button>
+                  <button
+                    className="btn-finalizar"
+                    onClick={() => finalizarAsignacion(a.id_asignacion)}
+                  >
+                    Desasignar
+                  </button>
                 ) : (
                   <span>Finalizada</span>
                 )}
-              </td>
-            </tr>
-          )) : (
-            <tr>
-              <td colSpan="6" style={{ textAlign: "center" }}>No hay asignaciones</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function SolicitudFallaPaso1y2() {
     id_marca: "",
     tipo_servicio: "",
     descripcion: "",
-    id_chofer: idChofer || "",
+    id_usuario: idChofer || "",
   });
 
   // Carga de solicitudes del chofer
@@ -54,7 +54,7 @@ export default function SolicitudFallaPaso1y2() {
         setMarcas(marcasRes);
         setLugares(lugaresRes);
 
-        if (rol === "chofer") {
+        if (rol === "Conductor") {
           const resUnidad = await fetch(`${API_URL}/unidades/chofer/${idChofer}`);
           const unidadChofer = await resUnidad.json();
 
@@ -108,12 +108,12 @@ export default function SolicitudFallaPaso1y2() {
       if (res.ok) {
         Swal.fire("Enviado", "Solicitud enviada correctamente", "success");
         setFormData({
-          id_unidad: rol === "chofer" ? unidades[0]?.id_unidad || "" : "",
+          id_unidad: rol === "Conductor" ? unidades[0]?.id_unidad || "" : "",
           id_pieza: "",
           id_marca: "",
           tipo_servicio: "",
           descripcion: "",
-          id_chofer: idChofer || "",
+          id_usuario: idChofer || "",
         });
         await cargarSolicitudes();
       } else {
@@ -159,7 +159,7 @@ export default function SolicitudFallaPaso1y2() {
     <div className="form-container">
 
       {/* FORMULARIO PRINCIPAL - siempre visible */}
-      {rol === "chofer" && unidades.length === 0 ? (
+      {rol === "Conductor" && unidades.length === 0 ? (
         <div className="form-card">
           <h3>No tienes unidad asignada</h3>
         </div>
@@ -168,16 +168,21 @@ export default function SolicitudFallaPaso1y2() {
           <h2 className="form-title">Solicitud de Falla Mecánica</h2>
           <form onSubmit={handleSubmitSolicitud} className="form-grid-2cols">
             <div className="form-group">
-              <label>Unidad:</label>
-              {rol === "chofer" ? (
-                <input type="text" value={unidades[0]?.vehiculo || ""} readOnly />
-              ) : (
-                <select name="id_unidad" value={formData.id_unidad} onChange={handleChange} required>
-                  <option value="">Seleccione</option>
-                  {unidades.map(u => <option key={u.id_unidad} value={u.id_unidad}>{u.vehiculo}</option>)}
-                </select>
-              )}
-            </div>
+  <label>Unidad:</label>
+  {rol === "Conductor" ? (
+    <input type="text" value={`${unidades[0]?.cve || ""} ${unidades[0]?.marca || ""} ${unidades[0]?.vehiculo || ""} ${unidades[0]?.modelo || ""} `.trim()} readOnly />
+  ) : (
+    <select name="id_unidad" value={formData.id_unidad} onChange={handleChange} required>
+      <option value="">Seleccione</option>
+      {unidades.map(u => (
+        <option key={u.id_unidad} value={u.id_unidad}>
+          {u.vehiculo}
+        </option>
+      ))}
+    </select>
+  )}
+</div>
+
 
             <div className="form-group">
               <label>Pieza:</label>

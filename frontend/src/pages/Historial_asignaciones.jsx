@@ -73,6 +73,7 @@ export default function HistorialAsignaciones() {
 
       {/* Tabla */}
       <div style={{ overflowX: "auto" }}>
+        <div className="table-wrapper">
         <table className="elegant-table" style={{ width: "100%", minWidth: 700 }}>
           <thead>
             <tr>
@@ -91,7 +92,7 @@ export default function HistorialAsignaciones() {
                 <tr key={h.id_historial}>
                   <td>{h.id_historial}</td>
                   <td>{h.id_unidad} - {h.nombre_unidad}</td>
-                <td>{h.nombre_chofer}</td>
+                <td>{h.nombre_usuario}</td>
 
                   <td>
                     {h.fecha_asignacion ? new Date(h.fecha_asignacion).toLocaleDateString("es-MX") : "-"}
@@ -110,7 +111,25 @@ export default function HistorialAsignaciones() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
+<div className="card-wrapper">
+  {currentData.length === 0 ? (
+    <p className="mensaje-estado">No hay historial con fecha de fin.</p>
+  ) : (
+    currentData.map(h => (
+      <div key={h.id_historial} className="unidad-card">
+        <p><b>ID Historial:</b> {h.id_historial}</p>
+        <p><b>Unidad:</b> {h.id_unidad} - {h.nombre_unidad}</p>
+        <p><b>Chofer:</b> {h.nombre_usuario}</p>
+        <p><b>Fecha Asignación:</b> {h.fecha_asignacion ? new Date(h.fecha_asignacion).toLocaleDateString("es-MX") : "-"}</p>
+        <p><b>Fecha Fin:</b> {h.fecha_fin ? new Date(h.fecha_fin).toLocaleDateString("es-MX") : "-"}</p>
+        <p><b>Usuario:</b> {h.usuario}</p>
+        <p><b>Fecha Cambio:</b> {h.fecha_cambio ? new Date(h.fecha_cambio).toLocaleString("es-MX") : "-"}</p>
+      </div>
+    ))
+  )}
+</div>
 
       {/* Paginación */}
       <div

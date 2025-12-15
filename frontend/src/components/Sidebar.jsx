@@ -190,7 +190,7 @@ const Sidebar = () => {
           )}
 
           {/* === Acciones Chofer (admin también puede ver) === */}
-          {(rol === "chofer" || rol === "admin" || rol === "usuario") && (
+          {(rol === "Conductor" || rol === "admin" || rol === "usuario") && (
             <div className="menu-item">
              <NavLink
               to="/Datoschfer"

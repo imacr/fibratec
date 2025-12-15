@@ -242,19 +242,34 @@ export default function RegistroPago() {
           <div className="form-group" style={{ flex: 1 }}>
             <label>Unidad:</label>
             <Select
-              options={unidades.map(u => ({
-                value: u.id_unidad,
-                label: `${u.id_unidad} - ${u.marca} ${u.vehiculo} ${u.modelo}`
-              }))}
-              onChange={opt => setForm(prev => ({ ...prev, id_unidad: opt.value }))}
-              value={form.id_unidad ? { value: form.id_unidad, label: (() => {
-                const selected = unidades.find(u => u.id_unidad === form.id_unidad);
-                return selected ? `${selected.id_unidad} - ${selected.marca} ${selected.vehiculo} ${selected.modelo}` : form.id_unidad;
-              })() } : null}
-              isClearable
-              placeholder="Busca o selecciona unidad"
-              isSearchable
-            />
+                options={unidades.map(u => ({
+                  value: u.id_unidad,
+                  label: `${u.cve} - ${u.marca} ${u.version} ${u.modelo}`
+                }))}
+                onChange={opt => {
+                  setForm(prev => ({
+                    ...prev,
+                    id_unidad: opt ? opt.value : null   // ← evita el error cuando opt es null
+                  }));
+                }}
+                value={
+                  form.id_unidad
+                    ? {
+                        value: form.id_unidad,
+                        label: (() => {
+                          const selected = unidades.find(u => u.id_unidad === form.id_unidad);
+                          return selected
+                            ? `${selected.cve} - ${selected.marca} ${selected.version} ${selected.modelo}`
+                            : form.id_unidad;
+                        })()
+                      }
+                    : null
+                }
+                isClearable
+                placeholder="Busca o selecciona unidad"
+                isSearchable
+              />
+
           </div>
           <button onClick={handleValidarUnidad} disabled={loadingCheck} style={{ height: 38, alignSelf: "end" }}>
             {loadingCheck ? "Validando..." : "Validar Unidad"}
@@ -385,7 +400,6 @@ export default function RegistroPago() {
               <th>Monto Refrendo</th>
               <th>Monto Tenencia</th>
               <th>Factura</th>
-              <th>Usuario</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -415,7 +429,6 @@ export default function RegistroPago() {
                         </button>
                       ) : "-"}
                     </td>
-                    <td>{pago.usuario || "-"}</td>
                     <td>
                       <button onClick={() => handleEdit(pago)}>Editar</button>
                     </td>
@@ -426,6 +439,42 @@ export default function RegistroPago() {
           </tbody>
         </table>
       </div>
+      
+      <div className="card-wrapper">
+  {pagosPaginados.length === 0 ? (
+    <p className="mensaje-estado">No hay pagos registrados</p>
+  ) : (
+    pagosPaginados.map(pago => {
+      const unidad = unidades.find(u => u.id_unidad === pago.id_unidad) || {};
+      return (
+        <div key={pago.id_pago} className="unidad-card">
+          <h3>{unidad.marca} {unidad.vehiculo}</h3>
+          <p><b>ID Unidad:</b> {unidad.id_unidad || pago.id_unidad}</p>
+          <p><b>Modelo:</b> {unidad.modelo}</p>
+          <p><b>Fecha Pago:</b> {pago.fecha_pago || "-"}</p>
+          <p><b>Tipo Pago:</b> {pago.tipo_pago || "-"}</p>
+          <p><b>Monto Refrendo:</b> {pago.monto_refrendo?.toFixed(2) || "-"}</p>
+          <p><b>Monto Tenencia:</b> {pago.monto_tenencia?.toFixed(2) || "-"}</p>
+
+          {pago.url_factura && (
+            <button
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => { setFileUrl(`${API_URL}/${pago.url_factura}`); setShowFileModal(true); }}
+            >
+              Ver Factura
+            </button>
+          )}
+
+          <div className="actions-container">
+            <button onClick={() => handleEdit(pago)}>
+              <i className="fa-solid fa-pen-to-square icon-edit"></i> Editar
+            </button>
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
 
       {/* Paginación */}
       <div className="pagination">

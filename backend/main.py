@@ -2,6 +2,13 @@ import os
 import secrets
 import shutil
 import uuid
+from sqlalchemy import or_
+from flask_bcrypt import Bcrypt
+import bcrypt
+from flask_bcrypt import check_password_hash
+from sqlalchemy import cast, Integer
+from datetime import datetime, timedelta
+
 
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory, session
@@ -19,9 +26,16 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm.attributes import flag_modified
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from sqlalchemy.exc import OperationalError
 
-
-
+#192.168.255.171
+#Imanol:FIBRATEC0101@192.168.253.135
 
 
 # Carga las variables de entorno desde un archivo .env para mayor seguridad
@@ -30,13 +44,34 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuración de CORS para permitir peticiones desde tu frontend (Vite en puerto 5173 por defecto)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.254.158:5173"}})
 
 # Configuración segura usando variables de entorno
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'una-clave-secreta-para-desarrollo')
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mysql+pymysql://root:admin@localhost/control_vehicular_unificada')
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.254.158:5173"}})
+
+# Evitar que flask-sqlalchemy lea otra variable de entorno
+DB_USER = os.getenv('DB_USER', 'Imanol')
+DB_PASS = os.getenv('DB_PASS', 'FIBRATEC0101')
+DB_HOST = os.getenv('DB_HOST', '192.168.253.135')
+DB_NAME = os.getenv('DB_NAME', 'control_vehicular_unificada')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'una-clave-secreta')
+jwt = JWTManager(app)
+
+
+
+# -----------------------------
+# Configurar cookies de sesión seguras
+# -----------------------------
+app.config.update(
+    SESSION_COOKIE_SECURE=True,      # Solo HTTPS
+    SESSION_COOKIE_HTTPONLY=True,    # JavaScript no puede leerla
+    SESSION_COOKIE_SAMESITE='Lax'    # Protección CSRF básica
+)
 
 # Configuración de Flask-Mail para enviar correos con Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -47,14 +82,37 @@ app.config['MAIL_PASSWORD'] = os.getenv('MAIL_APP_PASS')
 app.config['MAIL_DEFAULT_SENDER'] = ("Sistema Placas", os.getenv('MAIL_USER'))
 
 
+
 # Inicialización de las extensiones de Flask
 db = SQLAlchemy(app)
 mail = Mail(app)
+bcrypt = Bcrypt(app)
+
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+
+try:
+    with app.app_context():
+        db.session.execute(text('SELECT 1'))  # ← aquí usamos text()
+    print("✅ Conexión a la base de datos exitosa")
+except OperationalError as e:
+    print("❌ Error de conexión:", e)
+
+# -----------------------------
+# Configurar Limiter para evitar brute force
+# -----------------------------
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per minute"],
+    storage_uri="memory://"
+)
+
+limiter.init_app(app)
 
 # --- 2. DEFINICIÓN DEL MODELO DE LA BASE DE DATOS (ORM) ---
 # Esta clase debe coincidir con la estructura de tu tabla 'Usuarios' ya existente
 class Usuarios(db.Model):
-    __tablename__ = 'usuarios'
+    __tablename__ = 'Usuarios'  # nombre exacto en MySQL, mayúscula
 
     id_usuario = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), nullable=False)
@@ -64,11 +122,11 @@ class Usuarios(db.Model):
     rol = db.Column(db.String(50), nullable=False)
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_ultimo_login = db.Column(db.DateTime, nullable=True)
-    estado = db.Column(db.Enum('activo','inactivo'), default='activo')
+    estado = db.Column(db.Boolean, default=True)
     token_recuperacion = db.Column(db.String(255), nullable=True)
-    token_expiracion = db.Column(db.DateTime, nullable=True)  # <-- Agrega esta línea
+    token_expiracion = db.Column(db.DateTime, nullable=True)
 
-    id_chofer = db.Column(db.Integer, db.ForeignKey('choferes.id_chofer'), nullable=True)
+    chofer = db.relationship("Choferes", backref="usuario", uselist=False)
 
     def to_dict(self):
         return {
@@ -79,12 +137,11 @@ class Usuarios(db.Model):
             "rol": self.rol,
             "estado": self.estado,
             "fecha_registro": str(self.fecha_registro),
-            "id_chofer": self.id_chofer,
             "nombre_chofer": self.chofer.nombre if self.chofer else None
         }
 
 class Choferes(db.Model):
-    __tablename__ = 'choferes'
+    __tablename__ = 'Choferes'
     id_chofer = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(255), nullable=False)
     curp = db.Column(db.String(18), unique=True, nullable=False)
@@ -95,9 +152,12 @@ class Choferes(db.Model):
     licencia_folio = db.Column(db.String(50))
     licencia_tipo = db.Column(db.String(50))
     licencia_vigencia = db.Column(db.Date)
-
-    usuarios = db.relationship('Usuarios', backref='chofer', lazy=True)  # relación inversa
-    
+    id_usuario = db.Column(db.Integer, db.ForeignKey("Usuarios.id_usuario"))
+    asignaciones = db.relationship(
+        "Asignaciones",
+        backref="chofer",
+        cascade="all, delete-orphan"
+    )
     def to_dict(self):
         return {
             "id_chofer": self.id_chofer,
@@ -108,64 +168,118 @@ class Choferes(db.Model):
         }
 
 
+
 class Unidades(db.Model):
     __tablename__ = "Unidades"
+
     id_unidad = db.Column(db.Integer, primary_key=True)
+    cve = db.Column(db.String(50), unique=True)
     marca = db.Column(db.String(100))
-    vehiculo = db.Column(db.String(100))
-    modelo = db.Column(db.Integer)
-    clase_tipo = db.Column(db.String(50))
-    niv = db.Column(db.String(50))
+    version = db.Column(db.String(100))
+    tipo = db.Column(db.String(100))
+    clase = db.Column(db.String(100))
+    modelo = db.Column(db.String(100))
+    año = db.Column(db.Integer)
+
+    niv = db.Column(db.String(50), unique=True)
     motor = db.Column(db.String(50))
     transmision = db.Column(db.String(50))
-    combustible = db.Column(db.String(50))
+    id_combustible = db.Column(db.Integer, db.ForeignKey("combustible.id_combustible"))
     color = db.Column(db.String(50))
+
+    id_placas = db.Column(db.Integer)
     telefono_gps = db.Column(db.String(20))
     sim_gps = db.Column(db.String(20))
     uid = db.Column(db.String(50))
-    propietario = db.Column(db.String(255))
-    id_empresa = db.Column(db.Integer, db.ForeignKey("empresa.id_empresa"), nullable=False)  # <-- empresa
-    sucursal = db.Column(db.Integer, db.ForeignKey("sucursales.id_sucursal"))  # <-- sucursal
-    compra_arrendado = db.Column(db.String(20))
-    fecha_adquisicion = db.Column(db.Date)
-    valor_factura = db.Column(db.Numeric(12,2))
-    url_factura = db.Column(db.String(255))
-    kilometraje_actual = db.Column(db.Integer)
-    url_foto = db.Column(db.String(255))  # <-- campo agregado
 
-    placa = db.relationship('Placas', uselist=False, backref='unidad')
-    empresa = db.relationship("Empresa", backref="unidades")
+    propietario = db.Column(db.String(255))
+    compra_arrendado = db.Column(db.String(20))
+
+    id_sucursal = db.Column(db.Integer, db.ForeignKey("Sucursales.id_sede"))
+    id_empresa = db.Column(db.Integer, db.ForeignKey("empresa.id_empresa"))
+
+    fecha_adquisicion = db.Column(db.Date)
+    valor_factura = db.Column(db.Numeric(12,2), default=0)
+    url_factura = db.Column(db.String(255))
+    url_foto = db.Column("foto_url", db.String(255))
+    kilometraje_actual = db.Column(db.Integer)
+
+    fecha_registro = db.Column(db.DateTime, server_default=func.now())
+    litros_actuales = db.Column(db.Numeric(10,2), default=0)
+    tolerancia = db.Column(db.Numeric(10,2), default=0)
+    capacidad_tanque = db.Column(db.Numeric(10,2), default=0)
+    id_credito = db.Column(db.Integer)
+    kilometraje_por_litro = db.Column(db.Numeric(10,2))
+
+    es_utilitario = db.Column(
+        db.Enum('Utilitario', 'No Utilitario'),
+        default='No Utilitario'
+    )
+
+
+
     sucursal_rel = db.relationship("Sucursal", backref="unidades")
+    empresa_rel = db.relationship("Empresa", backref="unidades")
+    placas_rel = db.relationship("Placas", backref="unidad", uselist=False)
+
+    combustible = db.relationship("Combustible", backref="unidades", uselist=False)
 
     def to_dict(self):
         return {
             'id_unidad': self.id_unidad,
+            'cve': self.cve,
             'marca': self.marca,
-            'vehiculo': self.vehiculo,
+            'version': self.version,
+            'tipo': self.tipo,
+            'clase': self.clase,
             'modelo': self.modelo,
-            'clase_tipo': self.clase_tipo,
             'niv': self.niv,
             'motor': self.motor,
             'transmision': self.transmision,
-            'combustible': self.combustible,
             'color': self.color,
             'telefono_gps': self.telefono_gps,
             'sim_gps': self.sim_gps,
             'uid': self.uid,
             'propietario': self.propietario,
+            'id_sucursal': self.id_sucursal,
             'id_empresa': self.id_empresa,
-            'sucursal': self.sucursal,
             'compra_arrendado': self.compra_arrendado,
             'fecha_adquisicion': str(self.fecha_adquisicion) if self.fecha_adquisicion else None,
             'valor_factura': float(self.valor_factura) if self.valor_factura else None,
             'url_factura': self.url_factura,
-            'kilometraje_actual': self.kilometraje_actual,
             'url_foto': self.url_foto,
-            'placa': self.placa.to_dict() if self.placa else None,
-            'empresa_nombre': self.empresa.nombre_comercial if self.empresa else None,
-            'sucursal_nombre': self.sucursal_rel.nombre if self.sucursal_rel else None
+            'kilometraje_actual': self.kilometraje_actual,
+            'fecha_registro': self.fecha_registro.strftime('%Y-%m-%d %H:%M:%S') if self.fecha_registro else None,
+            'litros_actuales': float(self.litros_actuales) if self.litros_actuales else None,
+            'tolerancia': float(self.tolerancia) if self.tolerancia else None,
+            'capacidad_tanque': float(self.capacidad_tanque) if self.capacidad_tanque else None,
+            'id_credito': self.id_credito,
+            'kilometraje_por_litro': float(self.kilometraje_por_litro) if self.kilometraje_por_litro else None,
+            'empresa_nombre': self.empresa_rel.nombre_comercial if self.empresa_rel else None,
+            'sucursal_nombre': self.sucursal_rel.name if self.sucursal_rel else None,
+            'es_utilitario': self.es_utilitario,
+            # CORRECTO: la placa viene desde la relación placas_rel
+            'placas': self.placas_rel.to_dict() if self.placas_rel else None,
+            'combustible': self.combustible.name if self.combustible else None
+
+
         }
 
+
+class Combustible(db.Model):
+    __tablename__ = "combustible"
+    id_combustible = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id_combustible": self.id_combustible,
+            "nombre": self.name
+        }
+
+
+    # Relación inversa opcional
+    
 class Placas(db.Model):
     __tablename__ = "Placas"
 
@@ -225,7 +339,7 @@ class HistorialGarantias(db.Model):
 
     id_historial = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_garantia = db.Column(db.Integer)
-    id_unidad = db.Column(db.Integer)
+    id_unidad = db.Column(db.Integer, db.ForeignKey("Unidades.id_unidad"))
     fecha_cambio = db.Column(db.DateTime, default=datetime.now)
     aseguradora = db.Column(db.String(255))
     tipo_garantia = db.Column(db.String(100))
@@ -238,6 +352,9 @@ class HistorialGarantias(db.Model):
     telefono_fijo = db.Column(db.String(20))    # NUEVO
     telefono_celular = db.Column(db.String(20)) # NUEVO
     usuario = db.Column(db.String(50))
+    
+    unidad = db.relationship('Unidades', viewonly=True)
+
 
 
 
@@ -272,7 +389,7 @@ class HistorialPlaca(db.Model):
 
 
 class VerificacionVehicular(db.Model):
-    __tablename__ = 'verificacionvehicular'
+    __tablename__ = 'VerificacionVehicular'
     id_verificacion = db.Column(db.Integer, primary_key=True)
     id_unidad = db.Column(db.Integer, db.ForeignKey('Unidades.id_unidad'))
     ultima_verificacion = db.Column(db.Date)
@@ -293,7 +410,7 @@ class HistorialVerificacionVehicular(db.Model):
     __tablename__ = 'HistorialVerificacionVehicular'
 
     id_historial = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_verificacion = db.Column(db.Integer, db.ForeignKey('verificacionvehicular.id_verificacion'), nullable=False)
+    id_verificacion = db.Column(db.Integer, db.ForeignKey('VerificacionVehicular.id_verificacion'), nullable=False)
     fecha_cambio = db.Column(db.DateTime, default=datetime.now)
     id_unidad = db.Column(db.Integer, db.ForeignKey('Unidades.id_unidad'), nullable=False)
     ultima_verificacion = db.Column(db.Date)
@@ -314,23 +431,21 @@ class HistorialVerificacionVehicular(db.Model):
 
 # Modelo para lugares de reparación
 class LugarReparacion(db.Model):
-    __tablename__ = "lugaresreparacion"
+    __tablename__ = "LugaresReparacion"
     id_lugar = db.Column(db.Integer, primary_key=True)
     nombre_lugar = db.Column(db.String(150), unique=True, nullable=False)
     tipo_lugar = db.Column(db.String(50))  # taller, empresa, mecánico particular
     direccion = db.Column(db.Text)
     contacto = db.Column(db.String(100))
     observaciones = db.Column(db.Text)
-    precio = db.Column(db.Numeric(10,2))
-    tipo_pago = db.Column(db.String(50))
     
 # Modelo para Solicitud de Falla (chofer)
 class SolicitudFalla(db.Model):
-    __tablename__ = "solicitudesfallas"
+    __tablename__ = "SolicitudesFallas"
     id_solicitud = db.Column(db.Integer, primary_key=True)
     id_unidad = db.Column(db.Integer, db.ForeignKey("Unidades.id_unidad"), nullable=False)
-    id_pieza = db.Column(db.Integer, db.ForeignKey("piezas.id_pieza"), nullable=False)
-    id_marca = db.Column(db.Integer, db.ForeignKey("marcaspiezas.id_marca"))
+    id_pieza = db.Column(db.Integer, db.ForeignKey("Piezas.id_pieza"), nullable=False)
+    id_marca = db.Column(db.Integer, db.ForeignKey("MarcasPiezas.id_marca"))
     tipo_servicio = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.Text)
     id_chofer = db.Column(db.Integer, nullable=False)
@@ -339,15 +454,15 @@ class SolicitudFalla(db.Model):
 
 # Modelo para Falla Mecánica
 class FallaMecanica(db.Model):
-    __tablename__ = "fallasmecanicas"
+    __tablename__ = "FallasMecanicas"
     id_falla = db.Column(db.Integer, primary_key=True)
     id_unidad = db.Column(db.Integer, db.ForeignKey("Unidades.id_unidad"), nullable=False)
     fecha_falla = db.Column(db.DateTime, default=datetime.now, nullable=False)
-    id_pieza = db.Column(db.Integer, db.ForeignKey("piezas.id_pieza"), nullable=False)
-    id_marca = db.Column(db.Integer, db.ForeignKey("marcaspiezas.id_marca"))
+    id_pieza = db.Column(db.Integer, db.ForeignKey("Piezas.id_pieza"), nullable=False)
+    id_marca = db.Column(db.Integer, db.ForeignKey("MarcasPiezas.id_marca"))
     tipo_servicio = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.Text)
-    id_lugar = db.Column(db.Integer, db.ForeignKey("lugaresreparacion.id_lugar"))
+    id_lugar = db.Column(db.Integer, db.ForeignKey("LugaresReparacion.id_lugar"))
     proveedor = db.Column(db.String(255))
     tipo_pago = db.Column(db.String(50))
     costo = db.Column(db.Numeric(15,2))
@@ -379,7 +494,7 @@ class FallaMecanica(db.Model):
 class FallasMensajes(db.Model):
     __tablename__ = 'fallas_mensajes'
     id_mensaje = db.Column(db.Integer, primary_key=True)
-    id_falla = db.Column(db.Integer, db.ForeignKey('fallasmecanicas.id_falla'))
+    id_falla = db.Column(db.Integer, db.ForeignKey('FallasMecanicas.id_falla'))
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'))
     mensaje = db.Column(db.Text, nullable=False)
     archivo_adjunto = db.Column(db.String(255))
@@ -395,8 +510,8 @@ class FallasMensajes(db.Model):
 class SolicitudFallaMensajes(db.Model):
     __tablename__ = "solicitudes_mensajes"
     id_mensaje = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_solicitud = db.Column(db.Integer, db.ForeignKey("solicitudesfallas.id_solicitud"))
-    id_usuario = db.Column(db.Integer, db.ForeignKey("usuarios.id_usuario"))
+    id_solicitud = db.Column(db.Integer, db.ForeignKey("SolicitudesFallas.id_solicitud"))
+    id_usuario = db.Column(db.Integer, db.ForeignKey("Usuarios.id_usuario"))
     mensaje = db.Column(db.Text, nullable=False)
     archivo_adjunto = db.Column(db.String(255))  # <-- esto faltaba
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
@@ -409,13 +524,13 @@ class SolicitudFallaMensajes(db.Model):
 
 
 class Piezas(db.Model):
-    __tablename__ = "piezas"
+    __tablename__ = "Piezas"
     id_pieza = db.Column(db.Integer, primary_key=True)
     nombre_pieza = db.Column(db.String(100), nullable=False, unique=True)
     descripcion = db.Column(db.Text)
 
 class MarcasPiezas(db.Model):
-    __tablename__ = "marcaspiezas"
+    __tablename__ = "MarcasPiezas"
     id_marca = db.Column(db.Integer, primary_key=True)
     nombre_marca = db.Column(db.String(100), nullable=False, unique=True)
     pais_origen = db.Column(db.String(100))
@@ -464,13 +579,13 @@ class Historial_Refrendo_Tenencia(db.Model):
 # MODELOS (mapear tablas existentes)
 # ---------------------
 class TiposMantenimiento(db.Model):
-    __tablename__ = 'tiposmantenimiento'
+    __tablename__ = 'TiposMantenimiento'
     id_tipo_mantenimiento = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nombre_tipo = db.Column(db.String(50), nullable=False, unique=True)
     descripcion = db.Column(db.Text)
 
 class FrecuenciasPorMarca(db.Model):
-    __tablename__ = 'frecuenciaspormarca'
+    __tablename__ = 'FrecuenciasPorMarca'
     id_frecuencia = db.Column(db.Integer, primary_key=True, autoincrement=True)
     marca = db.Column(db.String(100), nullable=False)
     id_tipo_mantenimiento = db.Column(db.Integer, db.ForeignKey('tiposmantenimiento.id_tipo_mantenimiento'), nullable=False)
@@ -478,17 +593,24 @@ class FrecuenciasPorMarca(db.Model):
     frecuencia_kilometraje = db.Column(db.Integer, nullable=False)   # km
 
 class MantenimientosProgramados(db.Model):
-    __tablename__ = 'mantenimientosprogramados'
+    __tablename__ = 'MantenimientosProgramados'
     id_mantenimiento_programado = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_unidad = db.Column(db.Integer, nullable=False)
+    id_unidad = db.Column(
+        db.Integer,
+        db.ForeignKey('Unidades.id_unidad'),
+        nullable=False
+    )
     id_tipo_mantenimiento = db.Column(db.Integer, db.ForeignKey('tiposmantenimiento.id_tipo_mantenimiento'), nullable=False)
     fecha_ultimo_mantenimiento = db.Column(db.Date)
     kilometraje_ultimo = db.Column(db.Integer)
     proximo_mantenimiento = db.Column(db.Date)
     proximo_kilometraje = db.Column(db.Integer)
 
+    unidad = db.relationship("Unidades", backref="mantenimientos_programados")
+
+
 class Mantenimientos(db.Model):
-    __tablename__ = 'mantenimientos'
+    __tablename__ = 'Mantenimientos'
     id_mantenimiento = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_mantenimiento_programado = db.Column(db.Integer, db.ForeignKey('mantenimientosprogramados.id_mantenimiento_programado'))
     id_unidad = db.Column(db.Integer, nullable=False)
@@ -508,18 +630,43 @@ class Mantenimientos(db.Model):
 class Asignaciones(db.Model):
     __tablename__ = "Asignaciones"
     id_asignacion = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_chofer = db.Column(db.Integer, db.ForeignKey('choferes.id_chofer'), nullable=False)
+    id_chofer = db.Column(db.Integer, db.ForeignKey('Choferes.id_chofer'), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('Usuarios.id_usuario'), nullable=True)
+
     id_unidad = db.Column(db.Integer, db.ForeignKey('Unidades.id_unidad'), nullable=False)
     fecha_asignacion = db.Column(db.Date, nullable=False)
     fecha_fin = db.Column(db.Date, nullable=True)
-    __table_args__ = (db.UniqueConstraint('id_chofer','id_unidad','fecha_asignacion', name='unique_asignacion'),)
+    unidades = db.relationship("Unidades", backref="asignaciones")
+    status = db.Column(
+        db.Enum('activo', 'inactivo'),
+    )
+    usuario_rel = db.relationship("Usuarios", backref="asignaciones")  # <-- Relación con Usuarios
+
+    __table_args__ = (db.UniqueConstraint('id_usuario', 'id_chofer', 'id_unidad', 'fecha_asignacion', name='unique_asignacion'),
+)
 
 class HistorialAsignaciones(db.Model):
     __tablename__ = "HistorialAsignaciones"
+
     id_historial = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_asignacion = db.Column(db.Integer, db.ForeignKey('Asignaciones.id_asignacion', ondelete='CASCADE'), nullable=False)
+
+    id_asignacion = db.Column(
+        db.Integer,
+        db.ForeignKey('Asignaciones.id_asignacion', ondelete='CASCADE'),
+        nullable=False
+    )
+
     fecha_cambio = db.Column(db.DateTime, default=datetime.now)
+
     id_chofer = db.Column(db.Integer)
+
+    # NUEVO: registrar también usuario que realiza el cambio
+    id_usuario = db.Column(
+        db.Integer,
+        db.ForeignKey('Usuarios.id_usuario'),
+        nullable=True
+    )
+
     fecha_asignacion = db.Column(db.Date)
     fecha_fin = db.Column(db.Date)
     usuario = db.Column(db.String(100))
@@ -527,6 +674,7 @@ class HistorialAsignaciones(db.Model):
 
 class Empresa(db.Model):
     __tablename__ = 'empresa'
+
     id_empresa = db.Column(db.Integer, primary_key=True, autoincrement=True)
     razon_social = db.Column(db.String(255))
     rfc = db.Column(db.String(20))
@@ -536,22 +684,19 @@ class Empresa(db.Model):
     inicio_operaciones = db.Column(db.Date)
     estatus = db.Column(db.String(10))
     actividad_economica = db.Column(db.String(255))
-    sucursales = db.relationship("Sucursal", backref="empresa", cascade="all, delete-orphan")
 
     
 class Sucursal(db.Model):
-    __tablename__ = "sucursales"
-    id_sucursal = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    nombre = db.Column(db.String(255), nullable=False)
+    __tablename__ = "Sucursales"
+    id_sede = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(150), nullable=False)  # coincide con la DB
     direccion = db.Column(db.String(255))
     telefono = db.Column(db.String(20))
-    correo = db.Column(db.String(100))
-    horario = db.Column(db.String(100))
-    id_empresa = db.Column(db.Integer, db.ForeignKey("empresa.id_empresa"), nullable=False)
-
+    correo = db.Column(db.String(150))
+    horario = db.Column(db.String(150))
 
 class Alerta(db.Model):
-    __tablename__ = "alertas"
+    __tablename__ = "Alertas"
     id_alerta = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_unidad = db.Column(db.Integer, db.ForeignKey("Unidades.id_unidad", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     tipo_alerta = db.Column(db.String(50), nullable=False)
@@ -573,39 +718,36 @@ def get_db_connection():
 # --- 3. RUTAS DE LA API ---
 
 @app.route('/login', methods=['POST'])
+@limiter.limit("200 per minute")
 def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
 
-    app.logger.info(f"Intento de inicio de sesión para el usuario: {username}")
-
     if not username or not password:
-        app.logger.warning("No se proporcionó usuario o contraseña.")
         return jsonify({"error": "Usuario y contraseña son requeridos"}), 400
 
-    user = Usuarios.query.filter_by(usuario=username, estado='activo').first()
+    user = Usuarios.query.filter_by(usuario=username, estado=True).first()
 
-    if user:
-        app.logger.info(f"Usuario encontrado: {user.usuario}, contraseña almacenada: {user.contraseña}")
-        if check_password_hash(user.contraseña, password):
-            session['user_id'] = user.id_usuario
-            session['username'] = user.usuario
-            session['rol'] = user.rol
-            user.fecha_ultimo_login = datetime.utcnow()
-            db.session.commit()
-            return jsonify({
-                "message": "Inicio de sesión exitoso",
-                "user": {"id": user.id_usuario, "username": user.usuario, "nombre": user.nombre, "rol": user.rol}
-            }), 200
-        else:
-            app.logger.warning("Contraseña inválida proporcionada.")
-    else:
-        app.logger.info("Usuario no encontrado o inactivo.")
+    # Validar usuario y contraseña con Flask-Bcrypt
+    if not user or not bcrypt.check_password_hash(user.contraseña, password):
+        return jsonify({"error": "Credenciales inválidas o usuario inactivo"}), 401
 
-    return jsonify({"error": "Credenciales inválidas o usuario inactivo"}), 401
+    user.fecha_ultimo_login = datetime.utcnow()
+    db.session.commit()
 
+    access_token = create_access_token(identity=user.id_usuario)
 
+    return jsonify({
+        "message": "Inicio de sesión exitoso",
+        "access_token": access_token,
+        "user": {
+            "id": user.id_usuario,
+            "username": user.usuario,
+            "nombre": user.nombre,
+            "rol": user.rol
+        }
+    }), 200
 
 # =======================
 #USUARIOS - CREACION
@@ -635,6 +777,7 @@ def enviar_correo_async(app, msg):
     with app.app_context():
         mail.send(msg)
 
+
 @app.route('/api/usuarios', methods=['POST'])
 def crear_usuario():
     data = request.json
@@ -645,19 +788,33 @@ def crear_usuario():
         contraseña = data.get('contraseña')
         correo = data.get('correo')
         rol = data.get('rol', 'usuario')
-        id_chofer = data.get('id_chofer')  # opcional
 
-        # --- Datos del chofer si se va a crear uno nuevo ---
+        # --- Datos del chofer ---
         crear_chofer = data.get('crear_chofer', False)
         chofer_data = data.get('chofer_data', {})
 
-        # --- Validación básica ---
         if not (nombre and usuario and contraseña and correo):
-            return jsonify({'error': 'Faltan datos obligatorios'}), 400
+            return jsonify({'error': 'Datos incompletos'}), 400
 
-        # --- Transacción ---
+        hashed_password = bcrypt.generate_password_hash(contraseña).decode('utf-8')
+
+        nuevo_usuario = Usuarios(
+            nombre=nombre,
+            usuario=usuario,
+            contraseña=hashed_password,
+            correo=correo,
+            rol=rol
+        )
+        db.session.add(nuevo_usuario)
+        db.session.flush()
+        id_usuario = nuevo_usuario.id_usuario
+
         if crear_chofer:
-            # Crear chofer primero
+            required_fields = ['nombre', 'curp', 'licencia_folio', 'licencia_tipo', 'licencia_vigencia']
+            if not all(chofer_data.get(f) for f in required_fields):
+                db.session.rollback()
+                return jsonify({'error': 'Datos del chofer incompletos'}), 400
+
             nuevo_chofer = Choferes(
                 nombre=chofer_data.get('nombre'),
                 curp=chofer_data.get('curp'),
@@ -667,44 +824,77 @@ def crear_usuario():
                 municipio=chofer_data.get('municipio'),
                 licencia_folio=chofer_data.get('licencia_folio'),
                 licencia_tipo=chofer_data.get('licencia_tipo'),
-                licencia_vigencia=chofer_data.get('licencia_vigencia')
+                licencia_vigencia=chofer_data.get('licencia_vigencia'),
+                id_usuario=id_usuario
             )
             db.session.add(nuevo_chofer)
-            db.session.flush()  # Para obtener el id
-            id_chofer = nuevo_chofer.id_chofer
-            rol = 'chofer'  # forzar rol chofer
 
-        # Crear usuario
-        nuevo_usuario = Usuarios(
-            nombre=nombre,
-            usuario=usuario,
-            contraseña=generate_password_hash(contraseña),  # Guardamos el hash
-            correo=correo,
-            rol=rol,
-            id_chofer=id_chofer
-        )
-        db.session.add(nuevo_usuario)
         db.session.commit()
 
-        # --- Enviar correo en segundo plano ---
         msg = Message(
             subject="Tus credenciales de acceso",
             recipients=[correo],
-            body=f"Hola {nombre},\n\nTu usuario ha sido creado exitosamente.\n\nUsuario: {usuario}\nContraseña: {contraseña}\n\nTe recomendamos cambiar tu contraseña después de iniciar sesión.\n\nSaludos."
+            body=f"Hola {nombre},\n\nUsuario: {usuario}\nContraseña: {contraseña}"
         )
         threading.Thread(target=enviar_correo_async, args=(app, msg)).start()
 
-        return jsonify({"mensaje": "Usuario creado correctamente y correo enviado"}), 201
+        return jsonify({"mensaje": "Usuario creado correctamente"}), 201
 
-    except Exception as e:
+    except IntegrityError as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e.orig).lower()
+
+        if 'usuario' in error_msg:
+            return jsonify({'error': 'El usuario ya existe'}), 409
+        if 'correo' in error_msg:
+            return jsonify({'error': 'El correo ya está registrado'}), 409
+        if 'curp' in error_msg:
+            return jsonify({'error': 'La CURP ya está registrada'}), 409
+
+        return jsonify({'error': 'Registro duplicado'}), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+
+@app.route('/api/usuarios/<int:id_usuario>', methods=['DELETE'])
+def eliminar_usuario(id_usuario):
+    try:
+        usuario = Usuarios.query.get(id_usuario)
+        if not usuario:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        if usuario.chofer:
+            for asignacion in usuario.chofer.asignaciones:
+                db.session.delete(asignacion)
+
+            db.session.delete(usuario.chofer)
+
+        db.session.delete(usuario)
+        db.session.commit()
+
+        return jsonify({"mensaje": "Usuario eliminado correctamente"}), 200
+
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": "No se puede eliminar el usuario porque tiene registros asociados"
+        }), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al eliminar el usuario"
+        }), 500
+
 
 
 @app.route('/api/usuarios', methods=['GET'])
 def obtener_usuarios():
     usuarios = Usuarios.query.all()
     resultado = []
+
     for u in usuarios:
         resultado.append({
             'id_usuario': u.id_usuario,
@@ -715,7 +905,8 @@ def obtener_usuarios():
             'fecha_registro': u.fecha_registro,
             'fecha_ultimo_login': u.fecha_ultimo_login,
             'estado': u.estado,
-            'id_chofer': u.id_chofer,
+            # Usar la relación chofer en lugar de u.id_chofer
+            'id_chofer': u.chofer.id_chofer if u.chofer else None,
             'chofer': {
                 'id_chofer': u.chofer.id_chofer,
                 'nombre': u.chofer.nombre,
@@ -729,43 +920,101 @@ def obtener_usuarios():
                 'licencia_vigencia': u.chofer.licencia_vigencia
             } if u.chofer else None
         })
+
     return jsonify(resultado), 200
+
 
 @app.route('/api/usuarios/<int:id_usuario>', methods=['PUT'])
 def actualizar_usuario(id_usuario):
     data = request.json
+
     try:
         usuario = Usuarios.query.get_or_404(id_usuario)
 
-        # Campos básicos
+        # --- Campos básicos ---
         usuario.nombre = data.get('nombre', usuario.nombre)
         usuario.usuario = data.get('usuario', usuario.usuario)
         usuario.correo = data.get('correo', usuario.correo)
         usuario.rol = data.get('rol', usuario.rol)
         usuario.estado = data.get('estado', usuario.estado)
 
-        # Actualizar contraseña solo si se proporciona
+        # --- Actualizar contraseña ---
         if 'contraseña' in data and data['contraseña']:
-            usuario.contraseña = generate_password_hash(data['contraseña'])
+            usuario.contraseña = bcrypt.generate_password_hash(
+                data['contraseña']
+            ).decode('utf-8')
 
-        # Asignar chofer
-        id_chofer = data.get('id_chofer')
-        if id_chofer is not None:
-            # Validar que el chofer no tenga usuario ya asignado (excepto este usuario)
-            chofer_existente = Usuarios.query.filter_by(id_chofer=id_chofer).first()
-            if chofer_existente and chofer_existente.id_usuario != id_usuario:
-                return jsonify({'error': 'El chofer ya tiene un usuario asignado'}), 400
-            usuario.id_chofer = id_chofer
-        else:
-            usuario.id_chofer = None
+        # --- Manejo de chofer ---
+        crear_chofer = data.get('crear_chofer', False)
+        chofer_data = data.get('chofer_data', {})
+
+        if usuario.rol == 'Conductor':
+
+            chofer_existente = Choferes.query.filter_by(
+                id_usuario=id_usuario
+            ).first()
+
+            if crear_chofer:
+                required_fields = [
+                    'nombre', 'curp',
+                    'licencia_folio', 'licencia_tipo',
+                    'licencia_vigencia'
+                ]
+
+                if not all(chofer_data.get(f) for f in required_fields):
+                    return jsonify({
+                        'error': 'Datos del chofer incompletos'
+                    }), 400
+
+                if chofer_existente:
+                    chofer_existente.nombre = chofer_data.get('nombre')
+                    chofer_existente.curp = chofer_data.get('curp')
+                    chofer_existente.calle = chofer_data.get('calle')
+                    chofer_existente.colonia_localidad = chofer_data.get('colonia_localidad')
+                    chofer_existente.codpos = chofer_data.get('codpos')
+                    chofer_existente.municipio = chofer_data.get('municipio')
+                    chofer_existente.licencia_folio = chofer_data.get('licencia_folio')
+                    chofer_existente.licencia_tipo = chofer_data.get('licencia_tipo')
+                    chofer_existente.licencia_vigencia = chofer_data.get('licencia_vigencia')
+                else:
+                    nuevo_chofer = Choferes(
+                        nombre=chofer_data.get('nombre'),
+                        curp=chofer_data.get('curp'),
+                        calle=chofer_data.get('calle'),
+                        colonia_localidad=chofer_data.get('colonia_localidad'),
+                        codpos=chofer_data.get('codpos'),
+                        municipio=chofer_data.get('municipio'),
+                        licencia_folio=chofer_data.get('licencia_folio'),
+                        licencia_tipo=chofer_data.get('licencia_tipo'),
+                        licencia_vigencia=chofer_data.get('licencia_vigencia'),
+                        id_usuario=id_usuario
+                    )
+                    db.session.add(nuevo_chofer)
+                    usuario.chofer = nuevo_chofer
 
         db.session.commit()
-        return jsonify({"mensaje": "Usuario actualizado correctamente"}), 200
+        return jsonify({
+            "mensaje": "Usuario actualizado correctamente"
+        }), 200
 
-    except Exception as e:
+    except IntegrityError as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e.orig).lower()
 
+        if 'usuario' in error_msg:
+            return jsonify({'error': 'El usuario ya existe'}), 409
+        if 'correo' in error_msg:
+            return jsonify({'error': 'El correo ya está registrado'}), 409
+        if 'curp' in error_msg:
+            return jsonify({'error': 'La CURP ya está registrada'}), 409
+
+        return jsonify({'error': 'Datos duplicados'}), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al actualizar el usuario"
+        }), 500
 
 @app.route('/api/choferes', methods=['GET'])
 def obtener_choferes():
@@ -869,6 +1118,8 @@ def request_password_reset():
     return jsonify({"message": "Si tu correo está registrado, recibirás un enlace."}), 200
 
 
+
+
 @app.route('/reset-password/<string:token>', methods=['POST'])
 def reset_password(token):
     """Maneja el cambio de contraseña a través del token."""
@@ -878,17 +1129,22 @@ def reset_password(token):
     if not password:    
         return jsonify({"error": "La nueva contraseña es requerida"}), 400
 
-    user = Usuarios.query.filter_by(token_recuperacion=token).filter(Usuarios.token_expiracion > datetime.utcnow()).first()
+    # Buscar usuario con token válido
+    user = Usuarios.query.filter_by(token_recuperacion=token)\
+                         .filter(Usuarios.token_expiracion > datetime.utcnow())\
+                         .first()
 
     if not user:
         return jsonify({"error": "El token es inválido o ha expirado."}), 400
 
-    user.contraseña = generate_password_hash(password)
+    # Generar hash usando bcrypt
+    user.contraseña = bcrypt.generate_password_hash(password).decode('utf-8')
     user.token_recuperacion = None
     user.token_expiracion = None
     db.session.commit()
 
     return jsonify({"message": "Contraseña actualizada con éxito"}), 200
+
 
 # =======================
 #UNIDADES - OBTENER DATOS
@@ -899,19 +1155,22 @@ def get_unidades_data():
     try:
         cursor = conn.cursor()
 
-        # Obtener filtros desde query string
         filtros = []
         params = []
 
+        # FILTRO OBLIGATORIO: SOLO ACTIVOS
+        filtros.append("U.estado = 1")
+
+        # Filtros opcionales
         id_empresa = request.args.get('id_empresa')
         if id_empresa:
             filtros.append("U.id_empresa = %s")
             params.append(id_empresa)
 
-        sucursal = request.args.get('sucursal')
-        if sucursal:
-            filtros.append("U.sucursal = %s")
-            params.append(sucursal)
+        id_sucursal = request.args.get('id_sucursal')
+        if id_sucursal:
+            filtros.append("U.id_sucursal = %s")
+            params.append(id_sucursal)
 
         estado_tarjeta = request.args.get('estado_tarjeta')
         if estado_tarjeta:
@@ -920,14 +1179,19 @@ def get_unidades_data():
             )
             params.append(estado_tarjeta)
 
-        # Construir WHERE dinámico
-        where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ""
+        # WHERE dinámico
+        where_clause = f"WHERE {' AND '.join(filtros)}"
 
         query = f"""
         SELECT
             U.id_unidad,
+            U.cve,
             U.marca,
-            U.vehiculo,
+            U.version AS vehiculo,
+            U.version,
+            U.tipo,
+            U.clase,
+            U.año,
             U.modelo,
             U.niv,
             P.placa,
@@ -935,26 +1199,38 @@ def get_unidades_data():
             P.fecha_vigencia AS fecha_vencimiento_tarjeta,
             CASE WHEN P.fecha_vigencia < CURDATE() THEN 'Vencida' ELSE 'Activa' END AS estado_tarjeta,
             V.engomado,
-            C.nombre AS chofer_asignado,
+            U2.nombre AS chofer_asignado,
             U.valor_factura,
             U.url_factura,
             U.kilometraje_actual,
-            U.url_foto,
+            U.foto_url,
             U.id_empresa,
-            U.sucursal,
+            U.id_sucursal,
+            U.litros_actuales,
+            U.tolerancia,
+            U.capacidad_tanque,
+            U.id_credito,
+            U.kilometraje_por_litro,
+            U.id_combustible,
+            U.es_utilitario,
             JSON_OBJECT(
                 'color', U.color,
-                'clase_tipo', U.clase_tipo,
+                'clase', U.clase,
                 'motor', U.motor,
                 'transmision', U.transmision,
-                'combustible', U.combustible,
+                'placas', U.id_placas,
+                'combustible', U.id_combustible,
                 'compra_arrendado', U.compra_arrendado,
                 'propietario', U.propietario,
+                'es_utilitario', U.es_utilitario,
                 'uid', U.uid,
+                'kiloetraje actual', U.kilometraje_actual,
                 'telefono_gps', U.telefono_gps,
                 'sim_gps', U.sim_gps,
                 'no_poliza', G.no_poliza,
-                'folio_verificacion', V.folio_verificacion
+                'folio_verificacion', V.folio_verificacion,
+                'empresa_nombre', E.nombre_comercial,
+                'sucursal_nombre', S.name
             ) AS mas_datos
         FROM Unidades U
         LEFT JOIN (
@@ -971,6 +1247,10 @@ def get_unidades_data():
         ) V ON U.id_unidad = V.id_unidad
         LEFT JOIN Asignaciones A ON U.id_unidad = A.id_unidad AND A.fecha_fin IS NULL
         LEFT JOIN Choferes C ON A.id_chofer = C.id_chofer
+        LEFT JOIN empresa E ON U.id_empresa = E.id_empresa
+        LEFT JOIN Sucursales S ON U.id_sucursal = S.id_sede
+        LEFT JOIN Usuarios U2 ON A.id_usuario = U2.id_usuario
+
         {where_clause}
         ORDER BY U.id_unidad;
         """
@@ -979,7 +1259,6 @@ def get_unidades_data():
         columns = [col[0] for col in cursor.description]
         results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-        # Formatear fechas
         for unidad in results:
             if unidad['fecha_adquisicion']:
                 unidad['fecha_adquisicion'] = unidad['fecha_adquisicion'].strftime('%Y-%m-%d')
@@ -989,6 +1268,7 @@ def get_unidades_data():
                 unidad['mas_datos'] = json.loads(unidad['mas_datos'])
 
         return jsonify(results), 200
+
     except Exception as e:
         print(f"Error al ejecutar la consulta: {e}")
         return jsonify({"error": "Error al obtener los datos de unidades"}), 500
@@ -996,111 +1276,110 @@ def get_unidades_data():
         cursor.close()
         conn.close()
 
+
+
+@app.route('/combustible', methods=['GET'])
+def get_combustible():
+    combustible = Combustible.query.all()
+    return jsonify([{
+        "id_combustible": c.id_combustible,
+        "nombre": c.name,
+    } for c in combustible])
+
+
+
+
 # =======================
 # PUT - Actualizar unidad
 # =======================
+
 @app.route('/api/unidades/<int:id_unidad>', methods=['PUT'])
 def update_unidad(id_unidad):
     try:
-        print("=== INICIO UPDATE UNIDAD ===")
         UPLOAD_IMG = 'uploads/unidades_imagen'
         UPLOAD_PLACAS = 'uploads/placas'
         UPLOAD_FACTURAS = 'uploads/facturas'
 
-        # Crear carpetas si no existen
         os.makedirs(UPLOAD_IMG, exist_ok=True)
         os.makedirs(UPLOAD_PLACAS, exist_ok=True)
         os.makedirs(UPLOAD_FACTURAS, exist_ok=True)
-        print("Carpetas de subida verificadas")
 
-        # Obtener datos del formulario y archivos
         data = request.form
         files = request.files
-        print("Datos recibidos:", data)
-        print("Archivos recibidos:", files)
-        print("ID unidad a actualizar:", id_unidad)
 
-        # Obtener la unidad
         unidad = db.session.get(Unidades, id_unidad)
         if not unidad:
-            print("Unidad no encontrada")
             return jsonify({"error": "Unidad no encontrada"}), 404
-        print("Unidad encontrada:", unidad.to_dict())
 
-        # Actualizar campos básicos
-        campos = ["marca", "vehiculo", "modelo", "clase_tipo", "niv",
-                  "motor", "transmision", "combustible", "color",
-                  "telefono_gps", "sim_gps", "uid", "propietario",
-                  "compra_arrendado", "valor_factura", "kilometraje_actual"]
+        campos = [
+            "marca", "cve", "version", "tipo", "clase", "modelo", "niv",
+            "motor", "transmision", "id_combustible", "color",
+            "telefono_gps", "sim_gps", "uid", "propietario",
+            "compra_arrendado", "valor_factura",
+            "kilometraje_actual", "es_utilitario"
+        ]
+
         for campo in campos:
             valor = data.get(campo)
             setattr(unidad, campo, valor)
-            print(f"Campo {campo} actualizado a:", valor)
 
-        # Fecha de adquisición
         fecha_adq = data.get("fecha_adquisicion")
-        unidad.fecha_adquisicion = date.fromisoformat(fecha_adq) if fecha_adq else unidad.fecha_adquisicion
-        print("Fecha de adquisición:", unidad.fecha_adquisicion)
+        unidad.fecha_adquisicion = (
+            date.fromisoformat(fecha_adq)
+            if fecha_adq else unidad.fecha_adquisicion
+        )
 
-        # Empresa y sucursal
         id_empresa = data.get("empresa")
         id_sucursal = data.get("sucursal")
         unidad.id_empresa = int(id_empresa) if id_empresa else unidad.id_empresa
-        unidad.sucursal = int(id_sucursal) if id_sucursal else unidad.sucursal
-        print("Empresa y sucursal actualizadas:", unidad.id_empresa, unidad.sucursal)
+        unidad.id_sucursal = int(id_sucursal) if id_sucursal else unidad.id_sucursal
 
-        # Función para guardar archivos
         def guardar_archivo_sobre(file_obj, carpeta, prefijo="archivo"):
             if not file_obj:
                 return None
             ext = os.path.splitext(file_obj.filename)[1]
-            filename = secure_filename(f"{prefijo}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}")
+            filename = secure_filename(
+                f"{prefijo}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+            )
             path = os.path.join(carpeta, filename)
             file_obj.save(path)
-            print(f"Archivo guardado: {filename} en {carpeta}")
             return f"{carpeta}/{filename}".replace("\\", "/")
 
-        # Foto unidad
         foto = files.get("foto_unidad")
         if foto and allowed_image(foto.filename):
-            unidad.url_foto = guardar_archivo_sobre(foto, UPLOAD_IMG, prefijo=f"unidad_{id_unidad}")
-            print("URL foto unidad:", unidad.url_foto)
+            unidad.url_foto = guardar_archivo_sobre(
+                foto, UPLOAD_IMG, prefijo=f"unidad_{id_unidad}"
+            )
 
-        # Factura
         pdf_factura = files.get("pdf_factura")
         if pdf_factura and allowed_pdf(pdf_factura.filename):
-            unidad.url_factura = guardar_archivo_sobre(pdf_factura, UPLOAD_FACTURAS, prefijo=f"factura_{id_unidad}")
-            print("URL factura:", unidad.url_factura)
+            unidad.url_factura = guardar_archivo_sobre(
+                pdf_factura, UPLOAD_FACTURAS, prefijo=f"factura_{id_unidad}"
+            )
 
-        # Placas
-        pdf_frontal = files.get("pdf_frontal")
-        pdf_trasero = files.get("pdf_trasero")
-        if any([data.get("placa"), data.get("folio"), data.get("fecha_expedicion"), data.get("fecha_vigencia"), pdf_frontal, pdf_trasero]):
-            placa = unidad.placa or Placas()
-            placa.placa = data.get("placa")
-            placa.folio = data.get("folio")
-            fecha_exp = data.get("fecha_expedicion")
-            fecha_vig = data.get("fecha_vigencia")
-            placa.fecha_expedicion = date.fromisoformat(fecha_exp) if fecha_exp else placa.fecha_expedicion
-            placa.fecha_vigencia = date.fromisoformat(fecha_vig) if fecha_vig else placa.fecha_vigencia
-            if pdf_frontal and allowed_pdf(pdf_frontal.filename):
-                placa.url_placa_frontal = guardar_archivo_sobre(pdf_frontal, UPLOAD_PLACAS, prefijo=f"frontal_{id_unidad}")
-            if pdf_trasero and allowed_pdf(pdf_trasero.filename):
-                placa.url_placa_trasera = guardar_archivo_sobre(pdf_trasero, UPLOAD_PLACAS, prefijo=f"trasero_{id_unidad}")
-            unidad.placa = placa
-            print("Placas actualizadas:", placa.placa, placa.folio)
-
-        # Guardar cambios
         db.session.commit()
-        print("Unidad actualizada correctamente en la base de datos")
+        return jsonify({
+            "mensaje": "Unidad actualizada correctamente"
+        }), 200
 
-        return jsonify({"message": "Unidad actualizada correctamente", "unidad": unidad.to_dict()}), 200
-
-    except Exception as e:
+    except IntegrityError as e:
         db.session.rollback()
-        print("Error al actualizar unidad:", str(e))
-        print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e.orig).lower()
+
+        if 'cve' in error_msg:
+            return jsonify({'error': 'La CVE ya está registrada'}), 409
+        if 'niv' in error_msg:
+            return jsonify({'error': 'El NIV ya está registrado'}), 409
+        if 'placa' in error_msg:
+            return jsonify({'error': 'Las placas ya están registradas'}), 409
+
+        return jsonify({'error': 'Datos duplicados'}), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al actualizar la unidad"
+        }), 500
 
 #ELIMINACION DE UNIDADES
 @app.route('/api/unidades/<int:id_unidad>', methods=['DELETE'])
@@ -1130,7 +1409,8 @@ def allowed_image(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXT
 
 def allowed_pdf(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PDF_EXT
+    allowed_extensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 
 @app.route('/api/unidades', methods=['POST'])
@@ -1163,50 +1443,93 @@ def agregar_unidad():
             print(f"{key}: {file.filename}")
         print("========================\n")
 
-        # ----------------------------
-        # Validar sucursal y empresa
+       # ----------------------------
+        # Validar sucursal
         # ----------------------------
         id_sucursal = data.get("sucursal")
-        id_empresa = data.get("empresa")
         try:
             id_sucursal = int(id_sucursal)
-            id_empresa = int(id_empresa)
         except (ValueError, TypeError):
-            return jsonify({"error": "ID de sucursal o empresa inválido"}), 400
+            return jsonify({"error": "ID de sucursal inválido"}), 400
 
         sucursal_obj = db.session.get(Sucursal, id_sucursal)
-        empresa_obj = db.session.get(Empresa, id_empresa)
-
-        if not empresa_obj:
-            return jsonify({"error": f"Empresa no encontrada. ID recibido: {id_empresa}"}), 400
         if not sucursal_obj:
             return jsonify({"error": f"Sucursal no encontrada. ID recibido: {id_sucursal}"}), 400
-        if sucursal_obj.id_empresa != empresa_obj.id_empresa:
-            return jsonify({"error": f"La sucursal {id_sucursal} no pertenece a la empresa {id_empresa}"}), 400
+
+        # ----------------------------
+        # Validar empresa (obligatoria)
+        # ----------------------------
+        id_empresa = data.get("empresa")
+        try:
+            id_empresa = int(id_empresa)
+        except (ValueError, TypeError):
+            return jsonify({"error": "ID de empresa inválido"}), 400
+
+        empresa_obj = db.session.get(Empresa, id_empresa)
+        if not empresa_obj:
+            return jsonify({"error": f"Empresa no encontrada. ID recibido: {id_empresa}"}), 400
+        
+
+        # ----------------------------
+        # Validar combustible
+        # ----------------------------
+        id_combustible = data.get("id_combustible")
+        if not id_combustible:
+            primer_combustible = db.session.query(Combustible).first()
+            if not primer_combustible:
+                return jsonify({"error": "No hay combustibles disponibles"}), 400
+            id_combustible = primer_combustible.id_combustible
+        else:
+            try:
+                id_combustible = int(id_combustible)
+            except ValueError:
+                return jsonify({"error": "ID de combustible inválido"}), 400
+
 
         # ----------------------------
         # Crear unidad
         # ----------------------------
         nueva_unidad = Unidades(
+            # Identificación
+            cve=data.get("cve"),
             marca=data.get("marca"),
-            vehiculo=data.get("vehiculo"),
+            version=data.get("version"),
+            tipo=data.get("tipo"),
+            clase=data.get("clase"),
+            año=int(data.get("año")) if data.get("año") else None,
+
             modelo=data.get("modelo"),
-            clase_tipo=data.get("clase_tipo"),
             niv=data.get("niv"),
             motor=data.get("motor"),
             transmision=data.get("transmision"),
-            combustible=data.get("combustible"),
+            id_combustible=id_combustible,
             color=data.get("color"),
+
+            # GPS
             telefono_gps=data.get("telefono_gps"),
             sim_gps=data.get("sim_gps"),
             uid=data.get("uid"),
+
+            # Propiedad
             propietario=data.get("propietario"),
-            sucursal=id_sucursal,
-            id_empresa=id_empresa,
             compra_arrendado=data.get("compra_arrendado"),
+
+            # Organización
+            id_sucursal=id_sucursal,
+            id_empresa=id_empresa,
+
+            # Información financiera
             fecha_adquisicion=date.fromisoformat(data.get("fecha_adquisicion")) if data.get("fecha_adquisicion") else None,
-            valor_factura=data.get("valor_factura"),
-            kilometraje_actual=data.get("kilometraje_actual")
+            valor_factura=float(data.get("valor_factura")) if data.get("valor_factura") else 0,
+
+            # Control operativo
+            kilometraje_actual=float(data.get("kilometraje_actual")) if data.get("kilometraje_actual") else 0,
+            litros_actuales=float(data.get("litros_actuales")) if data.get("litros_actuales") else 0,
+            tolerancia=float(data.get("tolerancia")) if data.get("tolerancia") else 0,
+            capacidad_tanque=float(data.get("capacidad_tanque")) if data.get("capacidad_tanque") else 0,
+            kilometraje_por_litro=float(data.get("kilometraje_por_litro")) if data.get("kilometraje_por_litro") else 0,
+            # NUEVO → ENUMS DESDE FRONTEND
+            es_utilitario=data.get("es_utilitario", "No Utilitario"),
         )
 
         # ----------------------------
@@ -1241,7 +1564,7 @@ def agregar_unidad():
             nueva_unidad.url_factura = guardar_pdf_unico(pdf_factura, UPLOAD_FACTURAS)
 
         # ----------------------------
-        # Guardar unidad en BD primero
+        # Guardar unidad en BD
         # ----------------------------
         db.session.add(nueva_unidad)
         db.session.commit()  # ahora nueva_unidad.id_unidad existe
@@ -1270,8 +1593,12 @@ def agregar_unidad():
                 monto_pago=float(data.get("monto_pago") or 0)
             )
             db.session.add(nueva_placa)
+            db.session.flush()  # importante: asigna el id sin hacer commit todavía
+
+            nueva_unidad.id_placas = nueva_placa.id_placa
             db.session.commit()
 
+        
         # ----------------------------
         # Programar mantenimientos iniciales según la marca de la unidad
         # ----------------------------
@@ -1279,7 +1606,6 @@ def agregar_unidad():
             frecuencias = FrecuenciasPorMarca.query.filter_by(marca=nueva_unidad.marca).all()
             created = []
             for f in frecuencias:
-                # Evitar duplicados por unidad y tipo de mantenimiento
                 existe = MantenimientosProgramados.query.filter_by(
                     id_unidad=nueva_unidad.id_unidad,
                     id_tipo_mantenimiento=f.id_tipo_mantenimiento
@@ -1299,10 +1625,11 @@ def agregar_unidad():
                     proximo_kilometraje=proximo_km
                 )
                 db.session.add(mp)
-                db.session.flush()  # para obtener id si es necesario
+                db.session.flush()
                 created.append(mp.id_mantenimiento_programado)
             db.session.commit()
             print(f"Mantenimientos programados para la unidad {nueva_unidad.id_unidad}: {created}")
+
         except Exception as e:
             db.session.rollback()
             print(f"Error al programar mantenimientos iniciales: {e}")
@@ -1315,12 +1642,25 @@ def agregar_unidad():
             "unidad": nueva_unidad.to_dict()
         }), 201
 
-    except Exception as e:
+    except IntegrityError as e:
         db.session.rollback()
-        print(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        error_msg = str(e.orig).lower()
 
-        
+        if 'cve' in error_msg:
+            return jsonify({'error': 'La CVE ya está registrada'}), 409
+        if 'niv' in error_msg:
+            return jsonify({'error': 'El NIV ya está registrado'}), 409
+        if 'placa' in error_msg:
+            return jsonify({'error': 'Las placas ya están registradas'}), 409
+
+        return jsonify({'error': 'Datos duplicados'}), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al registrar la unidad"
+        }), 500
+
 import threading
 from datetime import date
 from flask_mail import Message
@@ -1333,66 +1673,71 @@ def enviar_correo_async(app, msg):
 @app.route('/asignaciones', methods=['POST'])
 def crear_asignacion():
     data = request.get_json()
-    id_chofer = data.get('id_chofer')
+    id_usuario = data.get('id_usuario')  # si viene directamente un usuario
+    id_chofer = data.get('id_chofer')    # opcional, si viene chofer
     id_unidad = data.get('id_unidad')
-    usuario = data.get('usuario', 'sistema')
+    usuario_registra = data.get('usuario', 'sistema')
     fecha_asignacion = date.today()
 
-    # Validaciones básicas
-    if not id_chofer or not id_unidad:
-        return jsonify({"error": "id_chofer y id_unidad son requeridos"}), 400
-
-    # Validar que la unidad tenga placas
+    if not id_unidad or (not id_usuario and not id_chofer):
+        return jsonify({"error": "Se requiere id_unidad y id_usuario o id_chofer"}), 400
+    # Verificar que la unidad tenga al menos una placa válida
     placa_unidad = Placas.query.filter_by(id_unidad=id_unidad).first()
+    if not placa_unidad:
+        return jsonify({"error": "No se puede asignar la unidad: no tiene placas registradas"}), 400
 
-    if not Unidades or not placa_unidad or not placa_unidad.placa or placa_unidad.placa.strip() == "":
-        return jsonify({"error": "La unidad no tiene una placa válida registrada"}), 400
+    # Si solo se envía id_chofer, buscar el id_usuario correspondiente
+    if id_chofer and not id_usuario:
+        chofer_obj = Choferes.query.get(id_chofer)
+        if not chofer_obj:
+            return jsonify({"error": "Chofer no encontrado"}), 404
+        id_usuario = chofer_obj.id_usuario  # ahora usamos el id_usuario del chofer
 
-    # Evitar duplicados exactos por fecha
-    asignacion_existente = Asignaciones.query.filter_by(
-        id_chofer=id_chofer,
-        id_unidad=id_unidad,
-        fecha_asignacion=fecha_asignacion
+    # Evitar duplicados activos
+    asignacion_existente = Asignaciones.query.filter(
+        Asignaciones.id_unidad == id_unidad,
+        Asignaciones.fecha_asignacion == fecha_asignacion,
+        Asignaciones.fecha_fin == None,
+        Asignaciones.id_usuario == id_usuario
     ).first()
 
     if asignacion_existente:
-        return jsonify({"error": "El chofer ya tiene asignada esta unidad en esta fecha"}), 400
+        return jsonify({"error": "La unidad ya está asignada a este usuario en esta fecha"}), 400
 
     # Crear asignación
     nueva = Asignaciones(
-        id_chofer=id_chofer,
+        id_usuario=id_usuario,
         id_unidad=id_unidad,
-        fecha_asignacion=fecha_asignacion
+        fecha_asignacion=fecha_asignacion,
+        status = 'activo',
     )
     db.session.add(nueva)
-    db.session.flush()  # Para obtener id_asignacion antes del commit
+    db.session.flush()
 
     # Registrar historial
     historial = HistorialAsignaciones(
         id_asignacion=nueva.id_asignacion,
-        id_chofer=id_chofer,
+        id_usuario=id_usuario,
         fecha_asignacion=fecha_asignacion,
         fecha_fin=None,
-        usuario=usuario
+        usuario=usuario_registra
     )
     db.session.add(historial)
     db.session.commit()
 
-    # Enviar correo al chofer
-    usuario_chofer = db.session.query(Usuarios).filter_by(id_chofer=id_chofer).first()
-    if usuario_chofer and usuario_chofer.correo:
+    # Opcional: enviar correo si tiene email
+    usuario_obj = Usuarios.query.get(id_usuario)
+    if usuario_obj and usuario_obj.correo:
         msg = Message(
             subject="Nueva asignación de unidad",
             sender="tu-correo@dominio.com",
-            recipients=[usuario_chofer.correo],
-            body=f"Hola {usuario_chofer.nombre},\n\nSe te ha asignado la unidad: {unidad.vehiculo}.\nFecha de asignación: {fecha_asignacion.isoformat()}.\n\nSaludos."
+            recipients=[usuario_obj.correo],
+            body=f"Hola {usuario_obj.nombre},\n\nSe te ha asignado la unidad: {id_unidad}.\nFecha: {fecha_asignacion}.\n\nSaludos."
         )
         threading.Thread(target=enviar_correo_async, args=(app, msg)).start()
 
-    return jsonify({
-        "message": "Asignación creada y correo enviado con documento",
-        "id_asignacion": nueva.id_asignacion
-    }), 201
+    return jsonify({"message": "Asignación creada", "id_asignacion": nueva.id_asignacion}), 201
+
 
 @app.route('/asignaciones/<int:id_asignacion>/finalizar', methods=['PUT'])
 def finalizar_asignacion(id_asignacion):
@@ -1401,13 +1746,16 @@ def finalizar_asignacion(id_asignacion):
     if not asignacion or asignacion.fecha_fin is not None:
         return jsonify({"error":"Asignación no encontrada o ya finalizada"}), 404
 
+    # Actualizar fecha_fin y status
     asignacion.fecha_fin = date.today()
+    asignacion.status = 'inactivo'  # <-- marcar como inactivo
     db.session.add(asignacion)
 
     # Registrar en historial
     historial = HistorialAsignaciones(
         id_asignacion=id_asignacion,
         id_chofer=asignacion.id_chofer,
+        id_usuario=asignacion.id_usuario,
         fecha_asignacion=asignacion.fecha_asignacion,
         fecha_fin=date.today(),
         usuario=usuario
@@ -1416,6 +1764,8 @@ def finalizar_asignacion(id_asignacion):
     db.session.commit()
 
     return jsonify({"message":"Asignación finalizada"}), 200
+
+
 
 @app.route('/historial_asignaciones', methods=['GET'])
 def historial():
@@ -1426,37 +1776,80 @@ def historial():
         asignacion = Asignaciones.query.get(h.id_asignacion)
         unidad = Unidades.query.get(asignacion.id_unidad) if asignacion else None
         chofer = Choferes.query.get(asignacion.id_chofer) if asignacion else None
+        usuario = asignacion.usuario_rel if asignacion else None
+        
+
 
         salida.append({
             "id_historial": h.id_historial,
             "id_asignacion": h.id_asignacion,
             "id_unidad": unidad.id_unidad if unidad else None,  # <-- ID del vehículo
-            "nombre_unidad": f"{unidad.marca} {unidad.vehiculo} {unidad.modelo}" if unidad else None,
+            "nombre_unidad": f"{unidad.marca} {unidad.version} {unidad.modelo}" if unidad else None,
             "id_chofer": chofer.id_chofer if chofer else None,
             "nombre_chofer": chofer.nombre if chofer else None,
             "fecha_asignacion": h.fecha_asignacion.isoformat() if h.fecha_asignacion else None,
             "fecha_fin": h.fecha_fin.isoformat() if h.fecha_fin else None,
             "usuario": h.usuario,
-            "fecha_cambio": h.fecha_cambio.isoformat()
+            "fecha_cambio": h.fecha_cambio.isoformat(),
+            "id_usuario": usuario.id_usuario if usuario else None,
+            "nombre_usuario": usuario.nombre if usuario else None
+
+
         })
 
     return jsonify(salida)
-
 
 
 @app.route('/asignaciones', methods=['GET'])
 def listar_asignaciones():
     asignaciones = Asignaciones.query.filter_by(fecha_fin=None).all()  # solo activas
+
     salida = []
+
     for a in asignaciones:
+
+        nombre_asignado = "Desconocido"
+
+        # Prioridad: buscar chofer por id_chofer
+        if a.id_chofer:
+            chofer = Choferes.query.get(a.id_chofer)
+            print(f"Chofer encontrado: {chofer}")
+            if chofer:
+                nombre_asignado = chofer.nombre
+        # Si no hay id_chofer, buscar usuario
+        elif a.id_usuario:
+            usuario = Usuarios.query.get(a.id_usuario)
+            print(f"Usuario encontrado: {usuario}")
+            if usuario:
+                nombre_asignado = usuario.nombre
+
+                # Intentar obtener el chofer asociado al usuario
+                chofer_asociado = Choferes.query.filter_by(id_usuario=a.id_usuario).first()
+                if chofer_asociado:
+                    print(f"Chofer asociado al usuario: {chofer_asociado}")
+                    a.id_chofer = chofer_asociado.id_chofer  # opcional, actualizar id_chofer
+                    nombre_asignado = chofer_asociado.nombre
+
+        # Obtener unidad
+        unidad = Unidades.query.get(a.id_unidad)
+
         salida.append({
             "id_asignacion": a.id_asignacion,
+            "id_usuario": a.id_usuario,
             "id_chofer": a.id_chofer,
+            "cve": unidad.cve if unidad else None,
+            "marca": unidad.marca if unidad else None,
+            "version": unidad.version if unidad else None,
+            "nombre_asignado": nombre_asignado,
             "id_unidad": a.id_unidad,
             "fecha_asignacion": a.fecha_asignacion.isoformat() if a.fecha_asignacion else None,
             "fecha_fin": a.fecha_fin.isoformat() if a.fecha_fin else None
         })
+
+    print(f"\nSalida final: {salida}")
     return jsonify(salida)
+
+
 
 @app.route('/choferes', methods=['GET'])
 def listar_choferes():
@@ -1474,51 +1867,124 @@ def listar_unidad():
     unidades = Unidades.query.all()
     salida = []
     for u in unidades:
-        # si quieres incluir la placa principal
         placa_obj = Placas.query.filter_by(id_unidad=u.id_unidad).first()
         salida.append({
             "id_unidad": u.id_unidad,
-            "vehiculo": u.vehiculo,
+            "cve": u.cve,
+            "version": u.version,
             "marca": u.marca,
             "modelo": u.modelo,
-            "placa": placa_obj.placa if placa_obj else None
+            "placa": placa_obj.placa if placa_obj else None,
+            "vehiculo": f"{u.marca} {u.version} {u.modelo}"  # <-- aquí
         })
     return jsonify(salida)
 
-@app.route('/unidades/libres', methods=['GET'])
-def listar_unidades_libres():
-    # Obtener todas las unidades
-    todas_unidades = Unidades.query.all()
-
-    # Obtener IDs de unidades que ya están asignadas activamente
+@app.route('/unidades/libres_usuario', methods=['GET'])
+def unidades_libres_usuario():
     asignadas = [a.id_unidad for a in Asignaciones.query.filter_by(fecha_fin=None).all()]
 
-    # Filtrar las que no están asignadas
-    unidades_libres = [
+    libres = (
+        Unidades.query
+        .filter(Unidades.id_unidad.notin_(asignadas))
+        .filter_by(es_utilitario='Utilitario')      # ← FILTRO CLAVE
+        .filter(Unidades.id_placas != None)        # ← Excluir sin placas
+        .all()
+    )
+
+    salida = [
         {
             "id_unidad": u.id_unidad,
-            "nombre": f"{u.marca} {u.vehiculo} {u.modelo}"
+            "nombre": f"{u.marca} {u.version} {u.modelo}",
+            "es_utilitario": u.es_utilitario
         }
-        for u in todas_unidades if u.id_unidad not in asignadas
+        for u in libres
     ]
 
-    return jsonify(unidades_libres)
+    return jsonify(salida)
+
+@app.route('/unidades/libres_chofer', methods=['GET'])
+def unidades_libres_chofer():
+    # Obtener las unidades actualmente asignadas
+    asignadas = [a.id_unidad for a in Asignaciones.query.filter_by(fecha_fin=None).all()]
+
+    # Filtrar unidades libres, que no sean utilitarios y que tengan placas
+    libres = (
+        Unidades.query
+        .filter(Unidades.id_unidad.notin_(asignadas))
+        .filter_by(es_utilitario='No Utilitario')   # ← FILTRO CLAVE
+        .filter(Unidades.id_placas != None)        # ← Excluir sin placas
+        .all()
+    )
+
+
+    salida = [
+        {
+            "id_unidad": u.id_unidad,
+            "nombre": f"{u.marca} {u.version} {u.modelo}",
+            "es_utilitario": u.es_utilitario,
+            "placas": u.id_placas
+        }
+        for u in libres
+    ]
+
+    return jsonify(salida)
+
+
+@app.route('/api/usuarios/admins', methods=['GET'])
+def obtener_usuarios_admins():
+    # Excluir Chofer y Conductor
+    usuarios = Usuarios.query.filter(
+        Usuarios.rol.notin_(["Chofer", "Conductor"])
+    ).all()
+
+    resultado = []
+
+    for u in usuarios:
+        resultado.append({
+            'id_usuario': u.id_usuario,
+            'nombre': u.nombre,
+            'usuario': u.usuario,
+            'correo': u.correo,
+            'rol': u.rol,
+            'fecha_registro': u.fecha_registro,
+            'fecha_ultimo_login': u.fecha_ultimo_login,
+            'estado': u.estado,
+            'id_chofer': u.chofer.id_chofer if u.chofer else None,
+            'chofer': {
+                'id_chofer': u.chofer.id_chofer,
+                'nombre': u.chofer.nombre,
+                'curp': u.chofer.curp,
+                'calle': u.chofer.calle,
+                'colonia_localidad': u.chofer.colonia_localidad,
+                'codpos': u.chofer.codpos,
+                'municipio': u.chofer.municipio,
+                'licencia_folio': u.chofer.licencia_folio,
+                'licencia_tipo': u.chofer.licencia_tipo,
+                'licencia_vigencia': u.chofer.licencia_vigencia
+            } if u.chofer else None
+        })
+
+    return jsonify(resultado), 200
+
 
 
 @app.route('/unidades/chofer/<int:id_usuario>', methods=['GET'])
 def obtener_unidad_por_chofer(id_usuario):
     try:
-        # Obtener el chofer vinculado al usuario
+        # Obtener usuario
         usuario = db.session.get(Usuarios, id_usuario)
-        if not usuario or not usuario.id_chofer:
+        if not usuario:
+            return jsonify({'error': 'Usuario no encontrado'}), 404
+
+        # Obtener chofer asociado
+        chofer = usuario.chofer
+        if not chofer:
             return jsonify({'error': 'El usuario no está vinculado a un chofer'}), 404
 
-        id_chofer = usuario.id_chofer
-
-        # Buscar asignación activa (sin fecha_fin o aún vigente)
+        # Buscar asignación activa mediante id_usuario
         asignacion = (
             Asignaciones.query
-            .filter_by(id_chofer=id_chofer)
+            .filter_by(id_usuario=id_usuario)
             .filter((Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= date.today()))
             .order_by(Asignaciones.fecha_asignacion.desc())
             .first()
@@ -1527,22 +1993,22 @@ def obtener_unidad_por_chofer(id_usuario):
         if not asignacion:
             return jsonify({'error': 'No tiene unidad asignada'}), 404
 
-        # Buscar datos de la unidad asignada
+        # Obtener unidad
         unidad = db.session.get(Unidades, asignacion.id_unidad)
         if not unidad:
             return jsonify({'error': 'Unidad no encontrada'}), 404
 
-        # Obtener placa asociada
+        # Obtener placa si existe
         placa_obj = Placas.query.filter_by(id_unidad=unidad.id_unidad).first()
         placa = placa_obj.placa if placa_obj else None
 
         return jsonify({
             'id_unidad': unidad.id_unidad,
-            'vehiculo': unidad.vehiculo,
+            'vehiculo': unidad.version,
             'marca': unidad.marca,
             'modelo': unidad.modelo,
             'placa': placa,
-            'id_chofer': id_chofer,
+            'id_chofer': chofer.id_chofer,
             'id_usuario': id_usuario
         })
 
@@ -1550,52 +2016,55 @@ def obtener_unidad_por_chofer(id_usuario):
         print("Error en obtener_unidad_por_chofer:", e)
         return jsonify({'error': 'Error interno del servidor'}), 500
 
-
 @app.route('/chofer/unidad/<int:id_usuario>', methods=['GET'])
 def obtener_datos_chofer_unidad(id_usuario):
     try:
-        # Obtener el usuario
+        print(f"=== INICIO obtener_datos_chofer_unidad para id_usuario={id_usuario} ===")
+        
+        # 1. Usuario
         usuario = db.session.get(Usuarios, id_usuario)
         if not usuario:
             return jsonify({'error': 'Usuario no encontrado'}), 404
+        print("Usuario encontrado:", usuario)
 
-        # Obtener el chofer asociado
-        chofer = db.session.get(Choferes, usuario.id_chofer) if usuario.id_chofer else None
+        # 2. Chofer asociado (puede no existir)
+        chofer = usuario.chofer
         if not chofer:
-            return jsonify({'error': 'Chofer no encontrado'}), 404
+            chofer_data = None
+        else:
+            chofer_data = {
+                "id_chofer": chofer.id_chofer,
+                "nombre": chofer.nombre,
+                "curp": chofer.curp,
+                "calle": chofer.calle,
+                "colonia_localidad": chofer.colonia_localidad,
+                "codpos": chofer.codpos,
+                "municipio": chofer.municipio,
+                "licencia_folio": chofer.licencia_folio,
+                "licencia_tipo": chofer.licencia_tipo,
+                "licencia_vigencia": str(chofer.licencia_vigencia) if chofer.licencia_vigencia else None
+            }
 
-        # Obtener la última asignación activa de unidad
+        # 3. Última asignación activa para este usuario
         asignacion = (
             Asignaciones.query
-            .filter_by(id_chofer=chofer.id_chofer)
-            .filter((Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= date.today()))
+            .filter(
+                Asignaciones.id_usuario == id_usuario,
+                Asignaciones.status == 'activo'
+            )
             .order_by(Asignaciones.fecha_asignacion.desc())
             .first()
         )
+        print("Asignación activa encontrada:", asignacion)
 
-        if not asignacion:
-            return jsonify({'error': 'No tiene unidad asignada'}), 404
+        # 4. Unidad (puede no existir)
+        unidad = None
+        if asignacion:
+            unidad_obj = db.session.get(Unidades, asignacion.id_unidad)
+            if unidad_obj:
+                unidad = unidad_obj.to_dict()  # ✅ Aquí se incluye placas_rel automáticamente
 
-        # Obtener la unidad
-        unidad = db.session.get(Unidades, asignacion.id_unidad)
-        if not unidad:
-            return jsonify({'error': 'Unidad no encontrada'}), 404
-
-        # Usar to_dict() si está disponible y asegurarse de incluir id_unidad
-        unidad_data = unidad.to_dict() if hasattr(unidad, 'to_dict') else {
-            'id_unidad': unidad.id_unidad,
-            'marca': unidad.marca,
-            'vehiculo': unidad.vehiculo,
-            'modelo': unidad.modelo,
-            'color': unidad.color,
-            'kilometraje_actual': unidad.kilometraje_actual,
-            'url_imagen': getattr(unidad, 'url_imagen', None),
-            'url_foto': getattr(unidad, 'url_foto', None),
-        }
-        # Aseguramos que exista la clave id_unidad (por si to_dict no la incluye)
-        unidad_data['id_unidad'] = unidad.id_unidad
-
-        # Preparar la respuesta completa
+        # 5. JSON de respuesta
         response = {
             "usuario": {
                 "id_usuario": usuario.id_usuario,
@@ -1607,27 +2076,16 @@ def obtener_datos_chofer_unidad(id_usuario):
                 "fecha_registro": str(usuario.fecha_registro),
                 "fecha_ultimo_login": str(usuario.fecha_ultimo_login) if usuario.fecha_ultimo_login else None,
             },
-            "chofer": {
-                "id_chofer": chofer.id_chofer,
-                "nombre": chofer.nombre,
-                "curp": chofer.curp,
-                "calle": chofer.calle,
-                "colonia_localidad": chofer.colonia_localidad,
-                "codpos": chofer.codpos,
-                "municipio": chofer.municipio,
-                "licencia_folio": chofer.licencia_folio,
-                "licencia_tipo": chofer.licencia_tipo,
-                "licencia_vigencia": str(chofer.licencia_vigencia) if chofer.licencia_vigencia else None
-            },
-            "unidad": unidad_data
+            "chofer": chofer_data,
+            "unidad": unidad,
+            "mensaje": "No tiene unidad asignada" if not unidad else ""
         }
 
-        return jsonify(response)
+        return jsonify(response), 200
 
     except Exception as e:
         print("Error en obtener_datos_chofer_unidad:", e)
         return jsonify({'error': 'Error interno del servidor'}), 500
-
 
 # =======================
 #GARANTIAS - OBTENER DATOS
@@ -1641,18 +2099,22 @@ def obtener_garantias():
 
         # Obtener filtros desde query params
         unidad = request.args.get('unidad')
+        usuario = request.args.get('usuario')  # <- ahora está definida
         chofer = request.args.get('chofer')
         aseguradora = request.args.get('aseguradora')
         tipo_garantia = request.args.get('tipo_garantia')
+
+
 
         # Base query
         query = """
             SELECT 
                 g.id_garantia,
-                COALESCE(C.nombre, 'Sin chofer asignado') AS chofer_asignado,
+                COALESCE(U2.nombre, 'Sin usuario asignado') AS usuario_asignado,
                 g.id_unidad,
+                u.cve,
                 u.marca,
-                u.vehiculo,
+                u.version,
                 g.aseguradora,
                 g.tipo_garantia,
                 g.no_poliza,
@@ -1666,13 +2128,14 @@ def obtener_garantias():
             FROM Garantias g
             JOIN Unidades u ON g.id_unidad = u.id_unidad
             LEFT JOIN (
-                SELECT id_unidad, id_chofer
+                SELECT id_unidad, id_usuario
                 FROM Asignaciones
                 WHERE fecha_fin IS NULL
             ) A ON u.id_unidad = A.id_unidad
-            LEFT JOIN Choferes C ON A.id_chofer = C.id_chofer
+            LEFT JOIN Usuarios U2 ON A.id_usuario = U2.id_usuario
             WHERE 1=1
         """
+
 
 
         # Lista de parámetros para query parametrizada
@@ -1681,9 +2144,9 @@ def obtener_garantias():
         if unidad:
             query += " AND g.id_unidad = %s"
             params.append(unidad)
-        if chofer:
-            query += " AND C.nombre LIKE %s"
-            params.append(f"%{chofer}%")
+        if usuario:
+            query += " AND U2.nombre LIKE %s"
+            params.append(f"%{usuario}%")
         if aseguradora:
             query += " AND g.aseguradora LIKE %s"
             params.append(f"%{aseguradora}%")
@@ -1725,6 +2188,7 @@ ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @app.route('/api/garantias', methods=['POST'])
 def crear_garantia():
     UPLOAD_FOLDER = 'uploads/garantias'
@@ -1740,44 +2204,30 @@ def crear_garantia():
 
     if not archivo or archivo.filename == '':
         return jsonify({"error": "Debe subir un archivo"}), 400
+
     if not allowed_file(archivo.filename):
-        return jsonify({"error": "Solo se permiten archivos PDF o imágenes"}), 400
+        return jsonify({"error": "Formato de archivo inválido"}), 400
 
     id_unidad = data.get('id_unidad')
     if not id_unidad:
-        return jsonify({"error": "Debe especificar una unidad"}), 400
+        return jsonify({"error": "Unidad no especificada"}), 400
 
-    # ------------------- Recibir teléfonos -------------------
     telefono_fijo = data.get('telefono_fijo')
     telefono_celular = data.get('telefono_celular')
-    # ---------------------------------------------------------
 
     garantia = Garantias.query.filter_by(id_unidad=id_unidad).first()
 
-    # Generar nombre de archivo único con fecha y hora
     ahora = datetime.now()
-    timestamp = ahora.strftime("%Y-%m-%d_%H-%M-%S")  # YYYY-MM-DD_HH-MM-SS
+    timestamp = ahora.strftime("%Y-%m-%d_%H-%M-%S")
     ext = os.path.splitext(archivo.filename)[1].lower()
     filename = secure_filename(f"{id_unidad}_{timestamp}{ext}")
 
     ruta_guardado_abs = os.path.join(ruta_upload_abs, filename)
     archivo.save(ruta_guardado_abs)
 
-    # Ruta relativa para DB/frontend
     ruta_archivo = "/" + os.path.join(UPLOAD_FOLDER, filename).replace("\\", "/")
 
     try:
-        def mover_a_historial(ruta_relativa):
-            if not ruta_relativa:
-                return None
-            ruta_abs = os.path.join(current_app.root_path, ruta_relativa.lstrip("/").replace("/", os.sep))
-            if os.path.exists(ruta_abs):
-                nombre = os.path.basename(ruta_abs)
-                nueva_ruta_abs = os.path.join(ruta_historial_abs, nombre)
-                shutil.move(ruta_abs, nueva_ruta_abs)
-                return "/" + os.path.join(HISTORIAL_FOLDER, nombre).replace("\\", "/")
-            return ruta_relativa
-
         hoy = date.today()
         puede_renovar = False
 
@@ -1785,44 +2235,54 @@ def crear_garantia():
             fecha_pre_renovacion = garantia.vigencia - timedelta(days=30)
             puede_renovar = hoy >= fecha_pre_renovacion
 
-        # ---------------- Garantía existente y puede renovarse ----------------
+        # -------- Garantía existente (renovación) --------
         if garantia and puede_renovar:
-            url_historial = mover_a_historial(garantia.url_poliza)
+            url_historial = None
+            # Mover archivo anterior a historial si existe
+            if garantia.url_poliza:
+                ruta_antigua_abs = os.path.join(
+                    current_app.root_path,
+                    garantia.url_poliza.lstrip("/").replace("/", os.sep)
+                )
+                if os.path.exists(ruta_antigua_abs):
+                    nombre_antiguo = os.path.basename(ruta_antigua_abs)
+                    nueva_ruta_abs = os.path.join(ruta_historial_abs, nombre_antiguo)
+                    shutil.move(ruta_antigua_abs, nueva_ruta_abs)
+                    url_historial = "/" + os.path.join(HISTORIAL_FOLDER, nombre_antiguo).replace("\\", "/")
 
-            historial = HistorialGarantias(
-                id_garantia=garantia.id_garantia,
-                id_unidad=garantia.id_unidad,
-                fecha_cambio=datetime.now(),
-                aseguradora=garantia.aseguradora,
-                tipo_garantia=garantia.tipo_garantia,
-                no_poliza=garantia.no_poliza,
-                url_poliza=url_historial,
-                suma_asegurada=garantia.suma_asegurada,
-                inicio_vigencia=garantia.inicio_vigencia,
-                vigencia=garantia.vigencia,
-                prima=garantia.prima,
-                usuario=data.get('usuario', 'sistema'),
-                # ---------------- Guardar teléfonos en historial ----------------
-                telefono_fijo=garantia.telefono_fijo,
-                telefono_celular=garantia.telefono_celular
-            )
-            db.session.add(historial)
+            # Guardar historial solo si se movió el archivo anterior
+            if url_historial:
+                historial = HistorialGarantias(
+                    id_garantia=garantia.id_garantia,
+                    id_unidad=garantia.id_unidad,
+                    fecha_cambio=datetime.now(),
+                    aseguradora=garantia.aseguradora,
+                    tipo_garantia=garantia.tipo_garantia,
+                    no_poliza=garantia.no_poliza,
+                    url_poliza=url_historial,
+                    suma_asegurada=garantia.suma_asegurada,
+                    inicio_vigencia=garantia.inicio_vigencia,
+                    vigencia=garantia.vigencia,
+                    prima=garantia.prima,
+                    usuario=data.get('usuario', 'sistema'),
+                    telefono_fijo=garantia.telefono_fijo,
+                    telefono_celular=garantia.telefono_celular
+                )
+                db.session.add(historial)
 
-            # Actualizar con nuevos datos
+            # Actualizar garantía con el archivo nuevo
             garantia.aseguradora = data.get('aseguradora')
             garantia.tipo_garantia = data.get('tipo_garantia')
             garantia.no_poliza = data.get('no_poliza')
-            garantia.url_poliza = ruta_archivo
+            garantia.url_poliza = ruta_archivo  # Archivo nuevo
             garantia.suma_asegurada = data.get('suma_asegurada')
             garantia.inicio_vigencia = data.get('inicio_vigencia')
             garantia.vigencia = data.get('vigencia')
             garantia.prima = data.get('prima')
-            # ---------------- Guardar teléfonos en la garantía actual ----------------
             garantia.telefono_fijo = telefono_fijo
             garantia.telefono_celular = telefono_celular
-            print("Garantía actualizada y enviada a historial (vencida o pre-renovación)")
 
-        # ---------------- Crear nueva garantía ----------------
+        # -------- Crear nueva garantía --------
         elif not garantia:
             nueva = Garantias(
                 id_unidad=id_unidad,
@@ -1834,31 +2294,35 @@ def crear_garantia():
                 inicio_vigencia=data.get('inicio_vigencia'),
                 vigencia=data.get('vigencia'),
                 prima=data.get('prima'),
-                # ---------------- Guardar teléfonos ----------------
                 telefono_fijo=telefono_fijo,
                 telefono_celular=telefono_celular
             )
             db.session.add(nueva)
-            print("Nueva garantía creada")
 
         else:
-            return jsonify({"error": "La garantía aún está vigente y no puede registrarse una nueva."}), 400
+            return jsonify({
+                "error": "La garantía aún está vigente"
+            }), 400
 
         db.session.commit()
-        return jsonify({"message": "Garantía registrada correctamente."}), 201
+        return jsonify({
+            "mensaje": "Garantía registrada correctamente"
+        }), 201
 
-    except Exception as e:
+    except IntegrityError:
         db.session.rollback()
-        import traceback; traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "La garantía ya existe para esta unidad"
+        }), 409
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al registrar la garantía"
+        }), 500
 
 @app.route('/api/garantias/<int:id_garantia>', methods=['PUT'])
 def actualizar_garantia(id_garantia):
-    print(f"\n=== ACTUALIZAR GARANTÍA: {id_garantia} ===")
-    print("Headers recibidos:", dict(request.headers))
-    print("Form data recibida:", request.form)
-    print("Archivos recibidos:", request.files)
-
     UPLOAD_FOLDER = os.path.join(app.root_path, 'uploads', 'garantias')
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -1883,15 +2347,24 @@ def actualizar_garantia(id_garantia):
             return jsonify({"error": "La garantía no existe"}), 404
 
         id_unidad = data.get('id_unidad')
-        cursor.execute("SELECT id_unidad FROM Unidades WHERE id_unidad = %s", (id_unidad,))
+        cursor.execute(
+            "SELECT id_unidad FROM Unidades WHERE id_unidad = %s",
+            (id_unidad,)
+        )
         if not cursor.fetchone():
-            return jsonify({"error": "La unidad indicada no existe"}), 400
+            return jsonify({"error": "La unidad no existe"}), 400
 
         url_poliza = garantia_existente[1]
 
-        if archivo and allowed_file(archivo.filename):
+        if archivo:
+            if not allowed_file(archivo.filename):
+                return jsonify({"error": "Formato de archivo inválido"}), 400
+
             if url_poliza:
-                ruta_antigua = os.path.join(app.root_path, url_poliza.lstrip("/").replace("/", os.sep))
+                ruta_antigua = os.path.join(
+                    app.root_path,
+                    url_poliza.lstrip("/").replace("/", os.sep)
+                )
                 if os.path.exists(ruta_antigua):
                     os.remove(ruta_antigua)
 
@@ -1929,19 +2402,30 @@ def actualizar_garantia(id_garantia):
             data.get('vigencia'),
             prima,
             url_poliza,
-            data.get('telefono_fijo'),      # nuevo
-            data.get('telefono_celular'),    # nuevo
+            data.get('telefono_fijo'),
+            data.get('telefono_celular'),
             id_garantia
         )
+
         cursor.execute(query, params)
         conn.commit()
 
-        return jsonify({"message": "Garantía actualizada correctamente", "url_poliza": url_poliza}), 200
+        return jsonify({
+            "mensaje": "Garantía actualizada correctamente",
+            "url_poliza": url_poliza
+        }), 200
 
-    except Exception as e:
+    except IntegrityError:
         conn.rollback()
-        import traceback; traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "Datos duplicados en la garantía"
+        }), 409
+
+    except Exception:
+        conn.rollback()
+        return jsonify({
+            "error": "Error al actualizar la garantía"
+        }), 500
 
     finally:
         cursor.close()
@@ -1981,32 +2465,51 @@ def verificar_garantia(id_unidad):
         "datos": datos
     })
 
+
 @app.route('/api/garantias/<int:id_garantia>', methods=['DELETE'])
 def eliminar_garantia(id_garantia):
     conn = db.engine.raw_connection()
     cursor = conn.cursor()
+
     try:
-        # Primero obtener la URL del PDF para eliminarlo del servidor
-        cursor.execute("SELECT url_poliza FROM Garantias WHERE id_garantia = %s", (id_garantia,))
+        cursor.execute(
+            "SELECT url_poliza FROM Garantias WHERE id_garantia = %s",
+            (id_garantia,)
+        )
         row = cursor.fetchone()
         if not row:
-            return jsonify({"error": "Garantía no encontrada"}), 404
+            return jsonify({"error": "La garantía no existe"}), 404
 
         url_poliza = row[0]
-        filepath = os.path.join(app.root_path, url_poliza.lstrip("/"))
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        if url_poliza:
+            filepath = os.path.join(
+                app.root_path,
+                url_poliza.lstrip("/").replace("/", os.sep)
+            )
+            if os.path.exists(filepath):
+                os.remove(filepath)
 
-        # Eliminar la garantía
-        cursor.execute("DELETE FROM Garantias WHERE id_garantia = %s", (id_garantia,))
+        cursor.execute(
+            "DELETE FROM Garantias WHERE id_garantia = %s",
+            (id_garantia,)
+        )
         conn.commit()
 
-        return jsonify({"message": "Garantía eliminada correctamente"}), 200
+        return jsonify({
+            "mensaje": "Garantía eliminada correctamente"
+        }), 200
 
-    except Exception as e:
+    except IntegrityError:
         conn.rollback()
-        print(f"Error al eliminar garantía: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "No es posible eliminar la garantía porque está relacionada con otros registros"
+        }), 409
+
+    except Exception:
+        conn.rollback()
+        return jsonify({
+            "error": "Error al eliminar la garantía"
+        }), 500
 
     finally:
         cursor.close()
@@ -2050,22 +2553,28 @@ def descargar_archivo(filename):
     )
 
 #hitorial de garantias
+
+
 @app.route('/api/historial_garantias', methods=['GET'])
 def get_historial_garantias():
     """
-    Obtiene todos los registros de la tabla HistorialGarantias
-    junto con los datos de la unidad (marca, tipo) si están relacionados.
+    Obtiene todos los registros de HistorialGarantias junto con datos de la unidad:
+    nombre, CVE y tipo de vehículo.
     """
     try:
-        # Si tienes relación con Unidades, puedes hacer join; si no, omite el join.
-        historial = HistorialGarantias.query.all()
+        # Trae todos los historiales y carga la relación con Unidades
+        historiales = HistorialGarantias.query.options(joinedload(HistorialGarantias.unidad)).all()
 
         resultado = []
-        for h in historial:
+        for h in historiales:
+            unidad = h.unidad  # La relación ya está definida
             resultado.append({
                 "id_historial": h.id_historial,
                 "id_garantia": h.id_garantia,
                 "id_unidad": h.id_unidad,
+                "nombre_unidad": unidad.marca if unidad else None,  # Nombre de unidad
+                "cve_unidad": unidad.cve if unidad else None,
+                "tipo_vehiculo": unidad.tipo if unidad else None,
                 "fecha_cambio": h.fecha_cambio.strftime("%Y-%m-%d %H:%M:%S") if h.fecha_cambio else None,
                 "aseguradora": h.aseguradora,
                 "tipo_garantia": h.tipo_garantia,
@@ -2073,17 +2582,123 @@ def get_historial_garantias():
                 "url_poliza": h.url_poliza,
                 "telefono_fijo": h.telefono_fijo,
                 "telefono_celular": h.telefono_celular,
-                "suma_asegurada": str(h.suma_asegurada),
+                "suma_asegurada": float(h.suma_asegurada) if h.suma_asegurada else None,
                 "inicio_vigencia": h.inicio_vigencia.strftime("%Y-%m-%d") if h.inicio_vigencia else None,
                 "vigencia": h.vigencia.strftime("%Y-%m-%d") if h.vigencia else None,
-                "prima": str(h.prima),
+                "prima": float(h.prima) if h.prima else None,
                 "usuario": h.usuario
             })
 
         return jsonify(resultado)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
+    except Exception as e:
+        return jsonify({"error": f"Ocurrió un error al obtener el historial: {str(e)}"}), 500
+
+
+def enviar_alertas_garantias():
+    hoy = date.today()
+    alerta_fecha = hoy + timedelta(days=60)  # 2 meses antes
+    print(f"[INFO] Fecha de alerta: {alerta_fecha}")
+
+    garantias = Garantias.query.filter(Garantias.vigencia <= alerta_fecha).all()
+    if not garantias:
+        print("[INFO] No hay garantías próximas a vencer")
+        return []
+
+    alertas_generadas = []
+
+    # ----------------------------------------------------------------------------------
+    # Alertas para administradores
+    # ----------------------------------------------------------------------------------
+    admins = Usuarios.query.filter_by(rol='admin').all()
+    emails_admin = [a.correo for a in admins if a.correo]
+    print(f"[INFO] Total administradores con correo: {len(emails_admin)}")
+
+    if emails_admin:
+        lista_html = "".join([
+            f"<li><strong>{g.unidad.version} {g.unidad.modelo}</strong> "
+            f"(ID {g.id_unidad}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
+            for g in garantias
+        ])
+        cuerpo_html = f"<html><body><h2>Garantías próximas a vencer</h2><ul>{lista_html}</ul></body></html>"
+
+        msg = Message(
+            subject="Alertas de garantías próximas a vencer",
+            recipients=emails_admin,
+            html=cuerpo_html
+        )
+        mail.send(msg)
+        print("[INFO] Correos enviados a administradores")
+
+        for g in garantias:
+            alerta = Alerta(
+                id_unidad=g.id_unidad,
+                tipo_alerta="garantia_vencimiento",
+                descripcion=f"La póliza {g.no_poliza} de la unidad {g.unidad.version} {g.unidad.modelo} vence el {g.vigencia}",
+                estado="pendiente",
+                detalle={"rol": "admin"}
+            )
+            db.session.add(alerta)
+            alertas_generadas.append(alerta)
+
+    # ----------------------------------------------------------------------------------
+    # Alertas para choferes asignados
+    # ----------------------------------------------------------------------------------
+    choferes = Usuarios.query.filter_by(rol="Conductor").all()
+    print(f"[INFO] Total choferes: {len(choferes)}")
+
+    for user in choferes:
+        if not user.correo:
+            print(f"[CHOFER] Usuario {user.id_usuario} sin correo, se omite")
+            continue
+
+        # Obtener id_chofer real
+        id_chofer_real = user.chofer.id_chofer if user.chofer else None
+
+        # Vehículos asignados al chofer
+        asignaciones = Asignaciones.query.filter(
+            Asignaciones.id_usuario == user.id_usuario,
+            Asignaciones.status == 'activo',
+            (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
+        ).all()
+
+        ids_unidades_user = [a.id_unidad for a in asignaciones]
+        garantias_user = [g for g in garantias if g.id_unidad in ids_unidades_user]
+
+        if not garantias_user:
+            continue
+
+        lista_html = "".join([
+            f"<li><strong>{g.unidad.version} {g.unidad.modelo}</strong> "
+            f"(ID {g.id_unidad}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
+            for g in garantias_user
+        ])
+        cuerpo_html = f"<html><body><h2>Garantías próximas a vencer de sus unidades</h2><ul>{lista_html}</ul></body></html>"
+
+        msg_user = Message(
+            subject="Alertas de garantía próxima a vencer",
+            recipients=[user.correo],
+            html=cuerpo_html
+        )
+        mail.send(msg_user)
+        print(f"[CHOFER] Correo enviado a {user.correo}")
+
+        for g in garantias_user:
+            alerta = Alerta(
+                id_unidad=g.id_unidad,
+                tipo_alerta="garantia_vencimiento",
+                descripcion=f"La póliza {g.no_poliza} de la unidad {g.unidad.version} {g.unidad.modelo} vence el {g.vigencia.strftime('%Y-%m-%d')}",
+                estado="pendiente",
+                detalle={"id_chofer": id_chofer_real, "rol": "Conductor"}
+            )
+            db.session.add(alerta)
+            alertas_generadas.append(alerta)
+
+
+
+    db.session.commit()
+    print(f"[INFO] Total alertas registradas: {len(alertas_generadas)}")
+    return alertas_generadas
 
 
 #verificacionwes
@@ -2123,10 +2738,21 @@ def obtener_unidad_por_id(id_unidad):
     def calcular_color_por_placa(placa):
         if not placa:
             return ""
-        ultimo_digito = placa[-1]
-        colores = {"1": "verde", "2": "verde", "3": "rojo", "4": "rojo",
-                   "5": "amarillo", "6": "amarillo", "7": "rosa", "8": "rosa",
-                   "9": "azul", "0": "azul"}
+        # Buscar el último dígito numérico desde el final
+        ultimo_digito = ""
+        for char in reversed(placa):
+            if char.isdigit():
+                ultimo_digito = char
+                break
+        if not ultimo_digito:
+            return ""  # No hay dígito numérico
+        colores = {
+            "1": "verde", "2": "verde",
+            "3": "rojo",  "4": "rojo",
+            "5": "amarillo", "6": "amarillo",
+            "7": "rosa",  "8": "rosa",
+            "9": "azul",  "0": "azul"
+        }
         return colores.get(ultimo_digito, "")
 
     engomado = calcular_color_por_placa(placa)
@@ -2134,11 +2760,12 @@ def obtener_unidad_por_id(id_unidad):
     return jsonify({
         "id_unidad": unidad.id_unidad,
         "marca": unidad.marca,
-        "vehiculo": unidad.vehiculo,
+        "version": unidad.version,
         "modelo": unidad.modelo,
         "placa": placa,
         "engomado": engomado
     })
+
 
 # Helpers
 def allowed_file(filename):
@@ -2214,25 +2841,19 @@ def crear_verificacion():
     data = request.form
     archivo = request.files.get('archivo')
 
-    print("=== DATA recibida ===")
-    print(data)
-    print("Archivo recibido:", archivo.filename if archivo else "No hay archivo")
-
     if not archivo or archivo.filename == '':
         return jsonify({"error": "Debe subir un archivo"}), 400
 
-    # Permitir PDF e imágenes
     ext = os.path.splitext(archivo.filename)[1].lower()
     permitidos = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
     if ext not in permitidos:
         return jsonify({"error": "Solo se permiten archivos PDF o imágenes"}), 400
 
-    unidad = Unidades.query.filter_by(id_unidad=data['id_unidad']).first()
+    unidad = Unidades.query.filter_by(id_unidad=data.get('id_unidad')).first()
     if not unidad:
         return jsonify({"error": "La unidad indicada no existe"}), 400
-    print("Unidad encontrada:", unidad)
 
-    placa_str = unidad.placa.placa if unidad.placa else ""
+    placa_str = unidad.placas_rel.placa if unidad.placas_rel else ""
     engomado = calcular_color_por_placa(placa_str)
     holograma = data.get('holograma', '')
 
@@ -2241,46 +2862,40 @@ def crear_verificacion():
     elif 'periodo_2_real' in data:
         periodo = '2'
     else:
-        return jsonify({"error": "No se encontró periodo válido."}), 400
+        return jsonify({"error": "Periodo de verificación inválido"}), 400
 
-    fecha_sugerida = datetime.strptime(data[f'periodo_{periodo}'], "%Y-%m-%d").date()
-    fecha_real = datetime.strptime(data[f'periodo_{periodo}_real'], "%Y-%m-%d").date()
-    print(f"Periodo: {periodo}, Fecha sugerida: {fecha_sugerida}, Fecha real: {fecha_real}")
+    try:
+        fecha_sugerida = datetime.strptime(data[f'periodo_{periodo}'], "%Y-%m-%d").date()
+        fecha_real = datetime.strptime(data[f'periodo_{periodo}_real'], "%Y-%m-%d").date()
+    except Exception:
+        return jsonify({"error": "Formato de fecha inválido"}), 400
 
     filename = secure_filename(f"{data['id_unidad']}_{periodo}_{date.today()}{ext}")
     ruta_guardado_abs = os.path.join(ruta_upload_abs, filename)
     archivo.save(ruta_guardado_abs)
     ruta_archivo = os.path.join(UPLOAD_FOLDER, filename).replace("\\", "/")
-    print(f"Archivo guardado en: {ruta_guardado_abs}")
-    print(f"Ruta relativa para DB/frontend: {ruta_archivo}")
-
-    existing = VerificacionVehicular.query.filter_by(id_unidad=data['id_unidad']).first()
-    print("Verificación existente:", existing)
 
     try:
         def mover_a_historial(ruta_relativa):
             if not ruta_relativa or ruta_relativa == ruta_archivo:
-                print(f"No se mueve (nuevo o vacío): {ruta_relativa}")
                 return ruta_relativa
-            ruta_abs = os.path.join(current_app.root_path, ruta_relativa.lstrip("/").replace("/", os.sep))
+            ruta_abs = os.path.join(
+                current_app.root_path,
+                ruta_relativa.lstrip("/").replace("/", os.sep)
+            )
             if os.path.exists(ruta_abs):
                 nombre = os.path.basename(ruta_abs)
                 nueva_ruta_abs = os.path.join(ruta_historial_abs, nombre)
                 shutil.move(ruta_abs, nueva_ruta_abs)
-                print(f"Archivo movido a historial: {nueva_ruta_abs}")
                 return os.path.join(HISTORIAL_FOLDER, nombre).replace("\\", "/")
-            print(f"Archivo no encontrado para mover: {ruta_abs}")
             return ruta_relativa
 
+        existing = VerificacionVehicular.query.filter_by(
+            id_unidad=data['id_unidad']
+        ).first()
+
         if existing and existing.ultima_verificacion:
-            anio_existente = existing.ultima_verificacion.year
-            anio_nuevo = fecha_real.year
-            print(f"Año existente: {anio_existente}, Año nuevo: {anio_nuevo}")
-
-            if anio_nuevo > anio_existente:
-                url_v1 = mover_a_historial(existing.url_verificacion_1)
-                url_v2 = mover_a_historial(existing.url_verificacion_2)
-
+            if fecha_real.year > existing.ultima_verificacion.year:
                 historial = HistorialVerificacionVehicular(
                     id_verificacion=existing.id_verificacion,
                     id_unidad=existing.id_unidad,
@@ -2288,19 +2903,17 @@ def crear_verificacion():
                     ultima_verificacion=existing.ultima_verificacion,
                     periodo_1=existing.periodo_1,
                     periodo_1_real=existing.periodo_1_real,
-                    url_verificacion_1=url_v1,
+                    url_verificacion_1=mover_a_historial(existing.url_verificacion_1),
                     periodo_2=existing.periodo_2,
                     periodo_2_real=existing.periodo_2_real,
-                    url_verificacion_2=url_v2,
+                    url_verificacion_2=mover_a_historial(existing.url_verificacion_2),
                     holograma=existing.holograma,
                     folio_verificacion=existing.folio_verificacion,
                     engomado=existing.engomado,
                     usuario=data.get('usuario', 'sistema')
                 )
                 db.session.add(historial)
-                print("Historial agregado a la sesión")
 
-                # Resetear campos antiguos
                 existing.periodo_1 = None
                 existing.periodo_1_real = None
                 existing.url_verificacion_1 = None
@@ -2311,7 +2924,6 @@ def crear_verificacion():
                 existing.holograma = None
                 existing.folio_verificacion = None
                 existing.engomado = None
-                print("Campos antiguos reseteados")
 
         if existing:
             if periodo == '1':
@@ -2327,24 +2939,16 @@ def crear_verificacion():
             existing.holograma = holograma
             existing.folio_verificacion = data.get('folio_verificacion', '')
             existing.engomado = engomado
-            print("Verificación existente actualizada con nuevo archivo")
 
-            # --- MARCAR ALERTAS EXISTENTES COMO COMPLETADAS ---
-            try:
-                alertas_pendientes = Alerta.query.filter_by(
-                    id_unidad=data['id_unidad'],
-                    tipo_alerta='verificacion',
-                    estado='pendiente'
-                ).all()
+            alertas = Alerta.query.filter_by(
+                id_unidad=data['id_unidad'],
+                tipo_alerta='verificacion',
+                estado='pendiente'
+            ).all()
 
-                for alerta in alertas_pendientes:
-                    alerta.estado = 'completada'
-                    alerta.fecha_completada = datetime.now()
-
-                if alertas_pendientes:
-                    print(f"✅ {len(alertas_pendientes)} alertas de verificación existentes marcadas como completadas")
-            except Exception as e:
-                print("⚠️ Error al marcar alertas como completadas:", e)
+            for alerta in alertas:
+                alerta.estado = 'completada'
+                alerta.fecha_completada = datetime.now()
 
         else:
             nueva = VerificacionVehicular(
@@ -2361,16 +2965,17 @@ def crear_verificacion():
                 engomado=engomado
             )
             db.session.add(nueva)
-            print("Nueva verificación agregada a la sesión")
 
         db.session.commit()
-        print("Commit realizado correctamente")
-        return jsonify({"message": f"Verificación del periodo {periodo} registrada correctamente."}), 201
+        return jsonify({
+            "mensaje": f"Verificación del periodo {periodo} registrada correctamente"
+        }), 201
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        import traceback; traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": "Error al registrar la verificación"
+        }), 500
 
 @app.route('/api/verificaciones/<int:id_verificacion>', methods=['DELETE'])
 def eliminar_verificacion(id_verificacion):
@@ -2382,61 +2987,73 @@ def eliminar_verificacion(id_verificacion):
     os.makedirs(ruta_upload_abs, exist_ok=True)
     os.makedirs(ruta_historial_abs, exist_ok=True)
 
-    verificacion = VerificacionVehicular.query.get(id_verificacion)
-    if not verificacion:
-        print(f"Verificación con id {id_verificacion} no encontrada")
-        return jsonify({"error": "Verificación no encontrada"}), 404
+    try:
+        verificacion = VerificacionVehicular.query.get(id_verificacion)
+        if not verificacion:
+            print(f"Verificación con id {id_verificacion} no encontrada")
+            return jsonify({"error": "Verificación no encontrada"}), 404
 
-    print(f"=== Eliminando verificación ID {verificacion.id_verificacion} ===")
-    print(f"Unidad: {verificacion.id_unidad}, Última verificación: {verificacion.ultima_verificacion}")
-    print(f"Periodo 1: {verificacion.periodo_1}, URL: {verificacion.url_verificacion_1}")
-    print(f"Periodo 2: {verificacion.periodo_2}, URL: {verificacion.url_verificacion_2}")
-    print(f"Holograma: {verificacion.holograma}, Folio: {verificacion.folio_verificacion}, Engomado: {verificacion.engomado}")
+        print(f"=== Eliminando verificación ID {verificacion.id_verificacion} ===")
+        print(f"Unidad: {verificacion.id_unidad}, Última verificación: {verificacion.ultima_verificacion}")
+        print(f"Periodo 1: {verificacion.periodo_1}, URL: {verificacion.url_verificacion_1}")
+        print(f"Periodo 2: {verificacion.periodo_2}, URL: {verificacion.url_verificacion_2}")
+        print(f"Holograma: {verificacion.holograma}, Folio: {verificacion.folio_verificacion}, Engomado: {verificacion.engomado}")
 
-    # Función para mover archivos
-    def mover_archivo_a_historial(url_relativa):
-        if not url_relativa:
-            print("No hay archivo para mover")
-            return None
-        ruta_abs = os.path.join(current_app.root_path, url_relativa.lstrip("/").replace("/", os.sep))
-        if os.path.exists(ruta_abs):
-            nombre = os.path.basename(ruta_abs)
-            nueva_ruta_abs = os.path.join(ruta_historial_abs, nombre)
-            shutil.move(ruta_abs, nueva_ruta_abs)
-            print(f"Archivo movido a historial: {nueva_ruta_abs}")
-            return os.path.join(HISTORIAL_FOLDER, nombre).replace("\\", "/")
-        print(f"Archivo no encontrado para mover: {ruta_abs}")
-        return url_relativa
+        # Función para mover archivos
+        def mover_archivo_a_historial(url_relativa):
+            if not url_relativa:
+                print("No hay archivo para mover")
+                return None
+            ruta_abs = os.path.join(
+                current_app.root_path,
+                url_relativa.lstrip("/").replace("/", os.sep)
+            )
+            if os.path.exists(ruta_abs):
+                nombre = os.path.basename(ruta_abs)
+                nueva_ruta_abs = os.path.join(ruta_historial_abs, nombre)
+                shutil.move(ruta_abs, nueva_ruta_abs)
+                print(f"Archivo movido a historial: {nueva_ruta_abs}")
+                return os.path.join(HISTORIAL_FOLDER, nombre).replace("\\", "/")
+            print(f"Archivo no encontrado para mover: {ruta_abs}")
+            return url_relativa
 
-    url_v1 = mover_archivo_a_historial(verificacion.url_verificacion_1)
-    url_v2 = mover_archivo_a_historial(verificacion.url_verificacion_2)
+        url_v1 = mover_archivo_a_historial(verificacion.url_verificacion_1)
+        url_v2 = mover_archivo_a_historial(verificacion.url_verificacion_2)
 
-    historial = HistorialVerificacionVehicular(
-        id_verificacion=verificacion.id_verificacion,
-        id_unidad=verificacion.id_unidad,
-        fecha_cambio=datetime.now(),
-        ultima_verificacion=verificacion.ultima_verificacion,
-        periodo_1=verificacion.periodo_1,
-        periodo_1_real=verificacion.periodo_1_real,
-        url_verificacion_1=url_v1,
-        periodo_2=verificacion.periodo_2,
-        periodo_2_real=verificacion.periodo_2_real,
-        url_verificacion_2=url_v2,
-        holograma=verificacion.holograma,
-        folio_verificacion=verificacion.folio_verificacion,
-        engomado=verificacion.engomado,
-        usuario="sistema"
-    )
+        historial = HistorialVerificacionVehicular(
+            id_verificacion=verificacion.id_verificacion,
+            id_unidad=verificacion.id_unidad,
+            fecha_cambio=datetime.now(),
+            ultima_verificacion=verificacion.ultima_verificacion,
+            periodo_1=verificacion.periodo_1,
+            periodo_1_real=verificacion.periodo_1_real,
+            url_verificacion_1=url_v1,
+            periodo_2=verificacion.periodo_2,
+            periodo_2_real=verificacion.periodo_2_real,
+            url_verificacion_2=url_v2,
+            holograma=verificacion.holograma,
+            folio_verificacion=verificacion.folio_verificacion,
+            engomado=verificacion.engomado,
+            usuario="sistema"
+        )
 
-    db.session.add(historial)
-    print("Registro agregado al historial")
+        db.session.add(historial)
+        print("Registro agregado al historial")
 
-    # Borrar verificación original
-    db.session.delete(verificacion)
-    db.session.commit()
-    print(f"Verificación ID {id_verificacion} eliminada y commit realizado")
+        db.session.delete(verificacion)
+        db.session.commit()
+        print(f"Verificación ID {id_verificacion} eliminada y commit realizado")
 
-    return jsonify({"message": "Verificación eliminada y enviada a historial"}), 200
+        return jsonify({
+            "message": "Verificación eliminada y enviada a historial"
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print("Error al eliminar verificación:", e)
+        return jsonify({
+            "error": "No fue posible eliminar la verificación"
+        }), 500
 
 
 @app.route('/api/calendario', methods=['GET'])
@@ -2598,7 +3215,7 @@ def obtener_verificacion_placa(placa):
         proxima = calcular_siguiente_verificacion(fecha_base, verificacion.holograma, verificacion.engomado)
 
     return jsonify({
-        "unidad": f"{unidad.marca} {unidad.vehiculo}",
+        "unidad": f"{unidad.marca} {unidad.version}",
         "placa": placa_obj.placa,
         "holograma": verificacion.holograma,
         "engomado": verificacion.engomado,
@@ -2619,7 +3236,8 @@ def obtener_verificaciones():
                 V.id_verificacion,
                 V.id_unidad,
                 U.marca,
-                U.vehiculo,
+                U.cve,
+                U.version,
                 U.modelo,
                 P.placa,
                 V.ultima_verificacion,
@@ -2632,7 +3250,7 @@ def obtener_verificaciones():
                 V.holograma,
                 V.folio_verificacion,
                 V.engomado
-            FROM verificacionvehicular V
+            FROM VerificacionVehicular V
             JOIN Unidades U ON V.id_unidad = U.id_unidad
             LEFT JOIN Placas P ON P.id_unidad = U.id_unidad
             ORDER BY V.id_verificacion DESC;
@@ -2694,7 +3312,7 @@ def obtener_historial_verificaciones():
             # Debug: imprime para verificar los datos
             print(f"Registro: {registro}, Unidad: {unidad}, Placa: {placa}")
 
-            nombre_unidad = f"{unidad.marca} {unidad.vehiculo} {unidad.modelo}"
+            nombre_unidad = f"{unidad.marca} {unidad.version} {unidad.modelo}"
 
             resultado.append({
                 "id_historial": registro.id_historial,
@@ -2759,7 +3377,6 @@ def enviar_alertas_verificacion():
 
         # Guardar fecha siguiente en la verificación (opcional)
         v.proxima_verificacion = fecha_siguiente  # Si agregas este campo en el modelo
-        # db.session.commit()  # Mejor hacerlo al final
 
         if hoy + anticipacion >= fecha_siguiente:
             proximas_alertas.append((v, fecha_siguiente))
@@ -2767,7 +3384,9 @@ def enviar_alertas_verificacion():
     print(f"Verificaciones próximas (alerta): {len(proximas_alertas)}")
     if not proximas_alertas:
         print("❌ No hay verificaciones próximas")
-        return
+        return []
+
+    alertas_generadas = []
 
     # --- 2. Administradores ---
     admins = Usuarios.query.filter_by(rol='admin').all()
@@ -2804,26 +3423,31 @@ def enviar_alertas_verificacion():
                 }
             )
             db.session.add(alerta)
-
+            alertas_generadas.append(alerta)
 
     # --- 3. Choferes ---
-    choferes = Usuarios.query.filter_by(rol='chofer').all()
+    choferes = Usuarios.query.filter_by(rol='Conductor').all()
     for user in choferes:
         if not user.correo:
             continue
 
-        # Vehículos asignados al chofer
+        id_chofer_real = user.chofer.id_chofer if user.chofer else None
+        if not id_chofer_real:
+            continue
+
+        # Filtrar asignaciones activas por id_usuario
         asignaciones_activas = Asignaciones.query.filter(
-            Asignaciones.id_chofer == user.id_chofer,
+            Asignaciones.id_usuario == user.id_usuario,
             (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
         ).all()
-        unidades_usuario = [a.id_unidad for a in asignaciones_activas]
 
+        unidades_usuario = [a.id_unidad for a in asignaciones_activas]
         vehiculos_usuario = [(v, fecha) for v, fecha in proximas_alertas if v.id_unidad in unidades_usuario]
 
         if not vehiculos_usuario:
             continue
 
+        # Enviar correo
         lista_usuario_html = "".join([
             f"<li>Unidad: <strong>{v.unidad.id_unidad}</strong> | "
             f"Próxima verificación: {fecha} | "
@@ -2837,9 +3461,9 @@ def enviar_alertas_verificacion():
             html=cuerpo_usuario
         )
         mail.send(msg_usuario)
-        print(f"✅ Correo enviado a chofer {user.id_chofer} - {user.correo}")
+        print(f"✅ Correo enviado a chofer {user.id_usuario} - {user.correo}")
 
-        # Crear alertas en BD para chofer
+        # Crear alertas en BD usando id_chofer_real
         for v, fecha in vehiculos_usuario:
             alerta = Alerta(
                 id_unidad=v.id_unidad,
@@ -2847,47 +3471,39 @@ def enviar_alertas_verificacion():
                 descripcion=f"Su unidad {v.unidad.id_unidad} requiere verificación antes del {fecha}",
                 estado="pendiente",
                 detalle={
-                    "rol": "chofer",
-                    "id_chofer": user.id_chofer,
+                    "rol": "Conductor",
+                    "id_chofer": id_chofer_real,
                     "holograma": v.holograma,
                     "engomado": v.engomado
                 }
             )
             db.session.add(alerta)
-
+            alertas_generadas.append(alerta)
 
     # Commit final para todas las alertas
     db.session.commit()
-    print("✅ Envío de alertas de verificación completado")
-
-# ---------------------------
-# Scheduler diario
-# ---------------------------
-scheduler = BackgroundScheduler()
-
-def job_envio_alertas_verificacion():
-    with app.app_context():  # Contexto de Flask activo
-        print("📌 Iniciando envío de alertas")
-        try:
-            enviar_alertas_verificacion()
-            print("✅ Alertas enviadas correctamente")
-        except Exception as e:
-            print(f"❌ Error al enviar alertas: {e}")
-
-# Ejecutar cada 100 segundos
-scheduler.add_job(job_envio_alertas_verificacion, 'interval', seconds=45060)
-scheduler.start()
-
-
+    print(f"✅ Envío de alertas de verificación completado, total alertas: {len(alertas_generadas)}")
+    return alertas_generadas
 
 
 # ===============================================================================================
 # SOLICITUDES DE FALLA MECÁNICA
 # ===============================================================================================
 
-@app.route('/solicitudes/chofer/<int:id_chofer>', methods=['GET'])
-def solicitudes_chofer(id_chofer):
-    solicitudes = SolicitudFalla.query.filter_by(id_chofer=id_chofer).all()
+
+@app.route('/solicitudes/chofer/<int:id_usuario>', methods=['GET'])
+def solicitudes_chofer(id_usuario):
+
+    # Buscar chofer vinculado (si existe)
+    chofer = Choferes.query.filter_by(id_usuario=id_usuario).first()
+
+    # Si el usuario NO es chofer → devolver lista vacía
+    if not chofer:
+        return jsonify([]), 200
+
+    # Si sí es chofer → obtener sus solicitudes
+    solicitudes = SolicitudFalla.query.filter_by(id_chofer=chofer.id_chofer).all()
+
     resultado = []
     for s in solicitudes:
         falla_existente = FallaMecanica.query.filter_by(
@@ -2896,7 +3512,6 @@ def solicitudes_chofer(id_chofer):
             tipo_servicio=s.tipo_servicio
         ).first()
 
-        # Consultar nombres
         unidad = Unidades.query.get(s.id_unidad)
         pieza = Piezas.query.get(s.id_pieza)
         marca = MarcasPiezas.query.get(s.id_marca)
@@ -2904,7 +3519,7 @@ def solicitudes_chofer(id_chofer):
         resultado.append({
             "id_solicitud": s.id_solicitud,
             "id_unidad": s.id_unidad,
-            "unidad": unidad.vehiculo if unidad else "No especificada",
+            "unidad": unidad.version if unidad else "No especificada",
             "id_pieza": s.id_pieza,
             "pieza": pieza.nombre_pieza if pieza else "No especificada",
             "id_marca": s.id_marca,
@@ -2914,24 +3529,56 @@ def solicitudes_chofer(id_chofer):
             "estado": s.estado,
             "completada": True if falla_existente else False
         })
-    return jsonify(resultado)
 
-# -------------------------------
-# Crear solicitud de falla (CHOFER)
-# -------------------------------
+    return jsonify(resultado), 200
+
+
+
+
 @app.route('/solicitudes', methods=['POST'])
 def crear_solicitud():
     data = request.json
+    print("\n===== Crear Solicitud =====")
+    print("Datos recibidos del frontend:", data)
+
+    # Obtener id_usuario desde frontend
+    id_usuario = data.get('id_usuario')
+    print("ID usuario recibido del frontend:", id_usuario)
+
+    if not id_usuario:
+        return jsonify({"error": "Falta id_usuario"}), 400
+
+    # Buscar usuario en DB para obtener información adicional
+    usuario = db.session.get(Usuarios, id_usuario)
+    if not usuario:
+        print("Usuario no encontrado con id_usuario:", id_usuario)
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    print("Usuario encontrado:", usuario.nombre, "Rol:", usuario.rol)
+
+    # Verificar si tiene chofer asociado solo para información de logs
+    # Usando el chofer asociado al usuario
+    if not usuario.chofer:
+        return jsonify({"error": "El usuario no tiene chofer asociado"}), 400
+
+    id_chofer_real = usuario.chofer.id_chofer
+
     nueva = SolicitudFalla(
         id_unidad = data['id_unidad'],
         id_pieza = data['id_pieza'],
         id_marca = data.get('id_marca'),
         tipo_servicio = data['tipo_servicio'],
         descripcion = data.get('descripcion', ''),
-        id_chofer = data['id_chofer']
+        id_chofer = id_chofer_real,  # ✅ este ID sí existe en choferes
     )
+
+
     db.session.add(nueva)
     db.session.commit()
+
+    print("Solicitud creada con id_solicitud:", nueva.id_solicitud)
+    print("Se guardó id_chofer (ID del usuario):", id_usuario)
+
     return jsonify({"msg":"Solicitud creada", "id_solicitud": nueva.id_solicitud}), 201
 
 # -------------------------------
@@ -2947,12 +3594,17 @@ def listar_todas_solicitudes():
         unidad = db.session.get(Unidades, s.id_unidad)
         pieza = db.session.get(Piezas, s.id_pieza)
         marca = db.session.get(MarcasPiezas, s.id_marca)
-        chofer = db.session.get(Usuarios, s.id_chofer)  # obtenemos el chofer
+        
+        chofer = db.session.get(Choferes, s.id_chofer)  # buscar en Choferes, no Usuarios
+        nombre_chofer = chofer.nombre if chofer else "No especificado"
+        nombre_usuario = chofer.usuario.nombre if chofer and chofer.usuario else "No especificado"
 
         resultado.append({
             "id_solicitud": s.id_solicitud,
             "id_unidad": s.id_unidad,
-            "unidad": unidad.vehiculo if unidad else "No especificada",
+            "unidad": unidad.version if unidad else "No especificada",
+            "cve": unidad.cve if unidad else "No especificada",
+            "marca_auto": unidad.marca if unidad else "No especificada",
             "id_pieza": s.id_pieza,
             "pieza": pieza.nombre_pieza if pieza else "No especificada",
             "id_marca": s.id_marca,
@@ -2961,9 +3613,14 @@ def listar_todas_solicitudes():
             "descripcion": s.descripcion,
             "estado": s.estado,
             "id_chofer": s.id_chofer,
-            "chofer": {"nombre": chofer.nombre} if chofer else None,
+            "chofer": {
+                "nombre_chofer": nombre_chofer,
+                "nombre_usuario": nombre_usuario
+            },
             "fecha_solicitud": s.fecha_solicitud.isoformat()
         })
+
+    # Imprimir para depuración
 
     return jsonify(resultado)
 
@@ -2997,69 +3654,76 @@ def allowed_file_falla(filename):
 
 @app.route('/fallas', methods=['POST'])
 def crear_falla():
-    data = request.form
-    archivo = request.files.get('comprobante')  # nombre del archivo en FormData
+    try:
+        data = request.form
+        archivo = request.files.get('comprobante')
 
-    id_solicitud = data.get('id_solicitud')
-    if not id_solicitud:
-        return jsonify({"error": "Falta id_solicitud"}), 400
+        id_solicitud = data.get('id_solicitud')
+        if not id_solicitud:
+            return jsonify({"error": "Solicitud no especificada"}), 400
 
-    solicitud = SolicitudFalla.query.get_or_404(id_solicitud)
-    if solicitud.estado != 'aprobada':
-        return jsonify({"error": "La solicitud no ha sido aprobada"}), 400
+        solicitud = SolicitudFalla.query.get(id_solicitud)
+        if not solicitud:
+            return jsonify({"error": "Solicitud no encontrada"}), 404
 
-    url_comprobante = None
-    if archivo:
-        if archivo.filename.lower().endswith('.pdf'):
+        if solicitud.estado != 'aprobada':
+            return jsonify({"error": "La solicitud no está aprobada"}), 400
+
+        url_comprobante = None
+        if archivo:
+            if not archivo.filename.lower().endswith('.pdf'):
+                return jsonify({"error": "El comprobante debe ser PDF"}), 400
+
             filename = f"falla_{solicitud.id_solicitud}.pdf"
             carpeta = os.path.join(app.root_path, 'uploads', 'fallasmecanicas')
             os.makedirs(carpeta, exist_ok=True)
             filepath = os.path.join(carpeta, filename)
             archivo.save(filepath)
             url_comprobante = f"uploads/fallasmecanicas/{filename}"
-        else:
-            return jsonify({"error": "Solo se permiten archivos PDF"}), 400
 
-    # Aquí imprimimos para depuración
-    print("URL del comprobante:", url_comprobante)
+        aplica_poliza_str = data.get('aplica_poliza', 'false')
+        aplica_poliza = aplica_poliza_str.lower() in ['true', '1', 'on']
 
-    aplica_poliza_str = data.get('aplica_poliza', 'false')
-    aplica_poliza = aplica_poliza_str.lower() in ['true', '1', 'on']
+        falla = FallaMecanica(
+            id_unidad=solicitud.id_unidad,
+            id_pieza=solicitud.id_pieza,
+            fecha_falla=solicitud.fecha_solicitud,
+            id_marca=solicitud.id_marca,
+            tipo_servicio=solicitud.tipo_servicio,
+            descripcion=solicitud.descripcion,
+            id_lugar=data.get('id_lugar'),
+            proveedor=data.get('proveedor'),
+            tipo_pago=data.get('tipo_pago'),
+            costo=data.get('costo'),
+            tiempo_uso_pieza=data.get('tiempo_uso_pieza'),
+            aplica_poliza=aplica_poliza,
+            observaciones=data.get('observaciones'),
+            url_comprobante=url_comprobante
+        )
 
-    falla = FallaMecanica(
-        id_unidad=solicitud.id_unidad,
-        id_pieza=solicitud.id_pieza,
-        fecha_falla=solicitud.fecha_solicitud,
-        id_marca=solicitud.id_marca,
-        tipo_servicio=solicitud.tipo_servicio,
-        descripcion=solicitud.descripcion,
-        id_lugar=data.get('id_lugar'),
-        proveedor=data.get('proveedor'),
-        tipo_pago=data.get('tipo_pago'),
-        costo=data.get('costo'),
-        tiempo_uso_pieza=data.get('tiempo_uso_pieza'),
-        aplica_poliza=aplica_poliza,
-        observaciones=data.get('observaciones'),
-        url_comprobante=url_comprobante
-    )
+        db.session.add(falla)
+        db.session.commit()
 
-    db.session.add(falla)
-    db.session.commit()
+        return jsonify({
+            "msg": "Falla registrada correctamente",
+            "id_falla": falla.id_falla,
+            "url_comprobante": falla.url_comprobante
+        }), 201
 
-    # También podemos devolverlo en la respuesta para confirmar
-    return jsonify({
-        "msg": "Falla registrada con éxito",
-        "id_falla": falla.id_falla,
-        "url_comprobante": falla.url_comprobante
-    })
-
+    except Exception as e:
+        db.session.rollback()
+        print("Error al registrar falla:", e)
+        return jsonify({
+            "error": "No fue posible registrar la falla"
+        }), 500
 
 
 @app.route('/falla_admin', methods=['POST'])
 def registrar_falla_admin():
     try:
         data = request.form
-        # Obtener datos del formulario
+
+        # Datos del formulario
         id_unidad = int(data.get('id_unidad'))
         id_pieza = int(data.get('id_pieza'))
         id_marca = int(data.get('id_marca')) if data.get('id_marca') else None
@@ -3082,7 +3746,6 @@ def registrar_falla_admin():
             os.makedirs(os.path.dirname(path), exist_ok=True)
             comprobante.save(path)
 
-        # Crear registro usando SQLAlchemy
         nueva_falla = FallaMecanica(
             id_unidad=id_unidad,
             id_pieza=id_pieza,
@@ -3102,28 +3765,32 @@ def registrar_falla_admin():
         db.session.add(nueva_falla)
         db.session.commit()
 
-        return jsonify({"message": "Falla registrada por administrador correctamente", "falla": {
-            "id_falla": nueva_falla.id_falla,
-            "id_unidad": nueva_falla.id_unidad,
-            "id_pieza": nueva_falla.id_pieza,
-            "id_marca": nueva_falla.id_marca,
-            "tipo_servicio": nueva_falla.tipo_servicio,
-            "descripcion": nueva_falla.descripcion,
-            "id_lugar": nueva_falla.id_lugar,
-            "proveedor": nueva_falla.proveedor,
-            "tipo_pago": nueva_falla.tipo_pago,
-            "costo": float(nueva_falla.costo or 0),
-            "tiempo_uso_pieza": nueva_falla.tiempo_uso_pieza,
-            "aplica_poliza": nueva_falla.aplica_poliza,
-            "observaciones": nueva_falla.observaciones,
-            "url_comprobante": nueva_falla.url_comprobante
-        }}), 201
+        return jsonify({
+            "message": "Falla registrada correctamente",
+            "falla": {
+                "id_falla": nueva_falla.id_falla,
+                "id_unidad": nueva_falla.id_unidad,
+                "id_pieza": nueva_falla.id_pieza,
+                "id_marca": nueva_falla.id_marca,
+                "tipo_servicio": nueva_falla.tipo_servicio,
+                "descripcion": nueva_falla.descripcion,
+                "id_lugar": nueva_falla.id_lugar,
+                "proveedor": nueva_falla.proveedor,
+                "tipo_pago": nueva_falla.tipo_pago,
+                "costo": float(nueva_falla.costo or 0),
+                "tiempo_uso_pieza": nueva_falla.tiempo_uso_pieza,
+                "aplica_poliza": nueva_falla.aplica_poliza,
+                "observaciones": nueva_falla.observaciones,
+                "url_comprobante": nueva_falla.url_comprobante
+            }
+        }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 400
-
-
+        print("Error al registrar falla (admin):", e)
+        return jsonify({
+            "error": "No fue posible registrar la falla"
+        }), 400
 
 
 @app.route('/fallas/<int:id_falla>', methods=['PUT'])
@@ -3175,7 +3842,7 @@ def actualizar_falla(id_falla):
                 "id_falla": falla.id_falla,
                 "descripcion": falla.descripcion,
                 "tipo_servicio": falla.tipo_servicio,
-                "unidad": unidad.vehiculo if unidad else "No especificada",
+                "unidad": unidad.version if unidad else "No especificada",
                 "pieza": pieza.nombre_pieza if pieza else "No especificada",
                 "marca": marca.nombre_marca if marca else "No especificada",
                 "id_lugar": falla.id_lugar,
@@ -3223,7 +3890,7 @@ def detalle_falla(id_falla):
 def listar_unidades():
     unidades = Unidades.query.all()
     return jsonify([
-        {"id_unidad": u.id_unidad, "vehiculo": u.vehiculo, "marca": u.marca, "modelo": u.modelo}
+        {"id_unidad": u.id_unidad, "vehiculo": u.version, "marca": u.marca, "modelo": u.modelo}
         for u in unidades
     ])
 
@@ -3235,7 +3902,7 @@ def obtener_unidad(id_unidad):
         return jsonify({"error": "Unidad no encontrada"}), 404
     return jsonify({
         "id_unidad": unidad.id_unidad,
-        "vehiculo": unidad.vehiculo,
+        "vehiculo": unidad.version,
         "marca": unidad.marca,
         "modelo": unidad.modelo
     })
@@ -3245,7 +3912,7 @@ def obtener_unidad(id_unidad):
 def listar_piezas():
     piezas = Piezas.query.all()
     return jsonify([
-        {"id_pieza": p.id_pieza, "nombre_pieza": p.nombre_pieza} for p in piezas
+        {"id_pieza": p.id_pieza, "nombre_pieza": p.nombre_pieza, "descripcion": p.descripcion} for p in piezas
     ])
 
 # Listar marcas
@@ -3253,7 +3920,7 @@ def listar_piezas():
 def listar_marcas():
     marcas = MarcasPiezas.query.all()
     return jsonify([
-        {"id_marca": m.id_marca, "nombre_marca": m.nombre_marca} for m in marcas
+        {"id_marca": m.id_marca, "nombre_marca": m.nombre_marca, "pais_origen": m.pais_origen,  "observaciones": m.observaciones} for m in marcas
     ])
 
 # Listar lugares de reparación
@@ -3261,8 +3928,131 @@ def listar_marcas():
 def listar_lugares():
     lugares = LugarReparacion.query.all()
     return jsonify([
-        {"id_lugar": l.id_lugar, "nombre_lugar": l.nombre_lugar} for l in lugares
+        {"id_lugar": l.id_lugar, "nombre_lugar": l.nombre_lugar, "direccion": l.direccion, "contacto": l.contacto, "observaciones": l.observaciones} for l in lugares
     ])
+
+# ----------------- CRUD LUGARES DE REPARACIÓN -----------------
+
+
+@app.route("/lugares/<int:id>", methods=["GET"])
+def obtener_lugar(id):
+    lugar = LugarReparacion.query.get_or_404(id)
+    return jsonify({
+        "id_lugar": lugar.id_lugar,
+        "nombre_lugar": lugar.nombre_lugar,
+        "tipo_lugar": lugar.tipo_lugar,
+        "direccion": lugar.direccion,
+        "contacto": lugar.contacto,
+        "observaciones": lugar.observaciones
+    })
+
+@app.route("/lugares", methods=["POST"])
+def crear_lugar():
+    data = request.json
+    lugar = LugarReparacion(**data)
+    db.session.add(lugar)
+    db.session.commit()
+    return jsonify({"message": "Lugar creado", "id": lugar.id_lugar}), 201
+
+@app.route("/lugares/<int:id>", methods=["PUT"])
+def actualizar_lugar(id):
+    lugar = LugarReparacion.query.get_or_404(id)
+    for key, value in request.json.items():
+        setattr(lugar, key, value)
+    db.session.commit()
+    return jsonify({"message": "Lugar actualizado"})
+
+@app.route("/lugares/<int:id>", methods=["DELETE"])
+def eliminar_lugar(id):
+    lugar = LugarReparacion.query.get_or_404(id)
+    db.session.delete(lugar)
+    db.session.commit()
+    return jsonify({"message": "Lugar eliminado"})
+
+# ----------------- CRUD PIEZAS -----------------
+
+@app.route("/piezas/<int:id>", methods=["GET"])
+def obtener_pieza(id):
+    pieza = Piezas.query.get_or_404(id)
+    return jsonify({"id_pieza": pieza.id_pieza, "nombre_pieza": pieza.nombre_pieza, "descripcion": pieza.descripcion})
+
+@app.route("/piezas", methods=["POST"])
+def crear_pieza():
+    data = request.json or {}
+
+    # Validar que venga el nombre
+    nombre = data.get("nombre_pieza", "").strip()
+    if not nombre:
+        return jsonify({"error": "El nombre de la pieza es obligatorio"}), 400
+
+    # Validar que no exista ya una pieza con el mismo nombre
+    existe = Piezas.query.filter_by(nombre_pieza=nombre).first()
+    if existe:
+        return jsonify({"error": f"La pieza '{nombre}' ya existe"}), 400
+
+    try:
+        pieza = Piezas(**data)
+        db.session.add(pieza)
+        db.session.commit()
+        return jsonify({"message": "Pieza creada", "id": pieza.id_pieza}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Error al crear la pieza", "detalle": str(e)}), 500
+
+
+@app.route("/piezas/<int:id>", methods=["PUT"])
+def actualizar_pieza(id):
+    pieza = Piezas.query.get_or_404(id)
+    for key, value in request.json.items():
+        setattr(pieza, key, value)
+    db.session.commit()
+    return jsonify({"message": "Pieza actualizada"})
+
+@app.route("/piezas/<int:id>", methods=["DELETE"])
+def eliminar_pieza(id):
+    pieza = Piezas.query.get_or_404(id)
+    db.session.delete(pieza)
+    db.session.commit()
+    return jsonify({"message": "Pieza eliminada"})
+
+# ----------------- CRUD MARCAS DE PIEZAS -----------------
+
+
+@app.route("/marcas/<int:id>", methods=["GET"])
+def obtener_marca(id):
+    marca = MarcasPiezas.query.get_or_404(id)
+    return jsonify({
+        "id_marca": marca.id_marca,
+        "nombre_marca": marca.nombre_marca,
+        "pais_origen": marca.pais_origen,
+        "observaciones": marca.observaciones
+    })
+
+@app.route("/marcas", methods=["POST"])
+def crear_marca():
+    data = request.json
+    marca = MarcasPiezas(**data)
+    db.session.add(marca)
+    db.session.commit()
+    return jsonify({"message": "Marca creada", "id": marca.id_marca}), 201
+
+@app.route("/marcas/<int:id>", methods=["PUT"])
+def actualizar_marca(id):
+    marca = MarcasPiezas.query.get_or_404(id)
+    for key, value in request.json.items():
+        setattr(marca, key, value)
+    db.session.commit()
+    return jsonify({"message": "Marca actualizada"})
+
+@app.route("/marcas/<int:id>", methods=["DELETE"])
+def eliminar_marca(id):
+    marca = MarcasPiezas.query.get_or_404(id)
+    db.session.delete(marca)
+    db.session.commit()
+    return jsonify({"message": "Marca eliminada"})
+
+
+
 
 # -------------------------------
 # Listar fallas mecánicas (con nombres descriptivos)
@@ -3287,7 +4077,7 @@ def listar_fallas():
             "id_lugar": f.id_lugar,
 
             # Nombres descriptivos
-            "unidad": unidad.vehiculo if unidad else "No especificada",
+            "unidad": unidad.version if unidad else "No especificada",
             "pieza": pieza.nombre_pieza if pieza else "No especificada",
             "marca": marca.nombre_marca if marca else "No especificada",
             "lugar_reparacion": lugar.nombre_lugar if lugar else "No especificado",
@@ -3342,7 +4132,6 @@ def eliminar_falla(id_falla):
     finally:
         cursor.close()
         conn.close()
-
 
 
 # -------------------------------
@@ -3405,9 +4194,17 @@ def rechazar_solicitud(id_solicitud):
     return jsonify({"msg": "Solicitud rechazada y mensaje enviado al chofer"})  
 
 
-@app.route("/mis_mensajes/<int:id_chofer>", methods=["GET"])
-def mis_mensajes(id_chofer):
-    # Incluir solicitudes rechazadas y pendientes
+@app.route("/mis_mensajes/<int:id_usuario>", methods=["GET"])
+def mis_mensajes(id_usuario):
+
+    # Obtener el chofer asociado al usuario
+    chofer = Choferes.query.filter_by(id_usuario=id_usuario).first()
+
+    if not chofer:
+        return jsonify([])
+
+    id_chofer = chofer.id_chofer
+
     solicitudes = SolicitudFalla.query.filter(
         SolicitudFalla.id_chofer == id_chofer,
         SolicitudFalla.estado.in_(["rechazada", "pendiente"])
@@ -3421,7 +4218,8 @@ def mis_mensajes(id_chofer):
 
         msgs_formateados = []
         for m in mensajes:
-            quien = "chofer" if m.id_usuario == id_chofer else "admin"
+            quien = "Conductor" if m.id_usuario == id_chofer else "admin"
+
             msgs_formateados.append({
                 "id_mensaje": m.id_mensaje,
                 "mensaje": m.mensaje,
@@ -3430,7 +4228,7 @@ def mis_mensajes(id_chofer):
                 "quien": quien
             })
 
-        if msgs_formateados:  # Solo agregar solicitudes con mensajes
+        if msgs_formateados:
             mensajes_res.append({
                 "id_solicitud": s.id_solicitud,
                 "tipo_servicio": s.tipo_servicio,
@@ -3440,10 +4238,8 @@ def mis_mensajes(id_chofer):
 
     return jsonify(mensajes_res)
 
+
 #/fallas_mensajes/usuario/
-
-
-
 
 
 @app.route("/uploads/mensajes/<filename>")
@@ -3543,8 +4339,6 @@ def obtener_mensajes(id_solicitud):
         # Importante para evitar saturar el pool
         db.session.remove()
 
-
-
 ####################################
 
 @app.route('/uploads/<path:filename>')
@@ -3562,46 +4356,58 @@ from datetime import datetime
 @app.route('/fallas/chofer/<int:id_usuario>', methods=['GET'])
 def fallas_por_chofer(id_usuario):
     usuario = db.session.get(Usuarios, id_usuario)
-    if not usuario or not usuario.id_chofer:
+    print("Usuario obtenido:", usuario)
+    if not usuario:
+        print("No se encontró usuario")
         return jsonify([])
 
-    asignacion = Asignaciones.query.filter_by(id_chofer=usuario.id_chofer, fecha_fin=None).first()
-    if not asignacion:
+    # Obtener asignaciones activas del usuario
+    asignaciones = (
+        Asignaciones.query
+        .filter_by(id_usuario=id_usuario)
+        .filter(Asignaciones.fecha_fin == None)
+        .all()
+    )
+    print(f"Asignaciones activas encontradas para id_usuario {id_usuario}: {len(asignaciones)}")
+
+    if not asignaciones:
+        print("No hay asignaciones activas")
         return jsonify([])
 
-    fallas = FallaMecanica.query.filter_by(id_unidad=asignacion.id_unidad).all()
     resultado = []
+    for asignacion in asignaciones:
+        print("Procesando asignacion:", asignacion.id_asignacion, "unidad:", asignacion.id_unidad)
+        fallas = FallaMecanica.query.filter_by(id_unidad=asignacion.id_unidad).all()
+        print(f"Fallas encontradas para unidad {asignacion.id_unidad}: {len(fallas)}")
+        for f in fallas:
+            unidad = Unidades.query.get(f.id_unidad)
+            pieza = Piezas.query.get(f.id_pieza)
+            marca = MarcasPiezas.query.get(f.id_marca)
+            lugar = LugarReparacion.query.get(f.id_lugar)
 
-    for f in fallas:
-        unidad = Unidades.query.get(f.id_unidad)
-        pieza = Piezas.query.get(f.id_pieza)
-        marca = MarcasPiezas.query.get(f.id_marca)
-        lugar = LugarReparacion.query.get(f.id_lugar)
+            resultado.append({
+                "id_falla": f.id_falla,
+                "id_unidad": f.id_unidad,
+                "id_pieza": f.id_pieza,
+                "id_marca": f.id_marca,
+                "id_lugar": f.id_lugar,
+                "unidad": unidad.version if unidad else "No especificada",
+                "pieza": pieza.nombre_pieza if pieza else "No especificada",
+                "marca": marca.nombre_marca if marca else "No especificada",
+                "lugar_reparacion": lugar.nombre_lugar if lugar else "No especificado",
+                "tipo_servicio": f.tipo_servicio,
+                "descripcion": f.descripcion,
+                "proveedor": f.proveedor,
+                "tipo_pago": f.tipo_pago,
+                "costo": str(f.costo) if f.costo else "0.00",
+                "tiempo_uso_pieza": f.tiempo_uso_pieza,
+                "aplica_poliza": f.aplica_poliza,
+                "observaciones": f.observaciones,
+                "url_comprobante": f.url_comprobante,
+                "fecha_falla": f.fecha_falla.isoformat() if f.fecha_falla else None
+            })
 
-        resultado.append({
-            "id_falla": f.id_falla,
-            "id_unidad": f.id_unidad,
-            "id_pieza": f.id_pieza,
-            "id_marca": f.id_marca,
-            "id_lugar": f.id_lugar,
-
-            "unidad": unidad.vehiculo if unidad else "No especificada",
-            "pieza": pieza.nombre_pieza if pieza else "No especificada",
-            "marca": marca.nombre_marca if marca else "No especificada",
-            "lugar_reparacion": lugar.nombre_lugar if lugar else "No especificado",
-
-            "tipo_servicio": f.tipo_servicio,
-            "descripcion": f.descripcion,
-            "proveedor": f.proveedor,
-            "tipo_pago": f.tipo_pago,
-            "costo": str(f.costo) if f.costo else "0.00",
-            "tiempo_uso_pieza": f.tiempo_uso_pieza,
-            "aplica_poliza": f.aplica_poliza,
-            "observaciones": f.observaciones,
-            "url_comprobante": f.url_comprobante,
-            "fecha_falla": f.fecha_falla.isoformat() if f.fecha_falla else None
-        })
-
+    print(f"Total de fallas encontradas: {len(resultado)}")
     return jsonify(resultado)
 
 #========================================================================================================
@@ -3614,9 +4420,13 @@ def get_placas():
         search = request.args.get('search', "", type=str)
         id_unidad = request.args.get('id_unidad', type=int)
 
-        query = Placas.query
+        # JOIN Placas + Unidades para obtener cve
+        query = db.session.query(
+            Placas,
+            Unidades.cve
+        ).join(Unidades, Placas.id_unidad == Unidades.id_unidad, isouter=True)
 
-        # Filtro de búsqueda por placa o folio
+        # Filtro de búsqueda
         if search:
             query = query.filter(
                 (Placas.placa.ilike(f"%{search}%")) |
@@ -3625,9 +4435,9 @@ def get_placas():
 
         # Filtro por unidad
         if id_unidad:
-            query = query.filter_by(id_unidad=id_unidad)
+            query = query.filter(Placas.id_unidad == id_unidad)
 
-        # Orden por ID descendente
+        # Ordenar por ID placa
         query = query.order_by(Placas.id_placa.desc())
 
         # Paginación
@@ -3635,7 +4445,12 @@ def get_placas():
         per_page = request.args.get('per_page', 10, type=int)
         placas_query = query.paginate(page=page, per_page=per_page, error_out=False)
 
-        placas = [p.to_dict() for p in placas_query.items]
+        # Convertir resultados
+        placas = []
+        for placa, cve in placas_query.items:
+            d = placa.to_dict()
+            d["cve"] = cve
+            placas.append(d)
 
         return jsonify({
             "total": placas_query.total,
@@ -3646,7 +4461,6 @@ def get_placas():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 
@@ -3685,15 +4499,13 @@ def enviar_alertas_semanales():
     hoy = date.today()
     seis_meses = hoy + timedelta(days=180)
 
-    # Obtener placas próximas a vencer o ya vencidas
-    placas_alerta = Placas.query.filter(
-        Placas.fecha_vigencia <= seis_meses
-    ).all()
-    
+    placas_alerta = Placas.query.filter(Placas.fecha_vigencia <= seis_meses).all()
     print(f"Total placas encontradas para alerta: {len(placas_alerta)}")
     if not placas_alerta:
         print("❌ No hay placas próximas a vencer o vencidas")
         return
+
+    alertas_generadas = []
 
     # --- 1. Administradores ---
     admins = Usuarios.query.filter_by(rol='admin').all()
@@ -3710,34 +4522,43 @@ def enviar_alertas_semanales():
         mail.send(msg_admin)
         print(f"✅ Correos enviados a administradores: {emails_admin}")
 
-        # Crear alertas en BD
         for p in placas_alerta:
             alerta = Alerta(
                 id_unidad=p.id_unidad,
                 tipo_alerta="placa",
                 descripcion=f"La placa {p.placa} está próxima a vencer el {p.fecha_vigencia}",
                 estado="pendiente",
-                detalle={"id_placa": p.id_placa}
+                detalle={"id_placa": p.id_placa, "rol": "admin"}
             )
             db.session.add(alerta)
-        db.session.commit()
-        print(f"✅ Alertas registradas para administradores")
+            alertas_generadas.append(alerta)
 
     # --- 2. Choferes ---
-    choferes = Usuarios.query.filter_by(rol='chofer').all()
-    print(f"Choferes encontrados: {[c.id_chofer for c in choferes]}")
+    choferes = Usuarios.query.filter_by(rol='Conductor').all()
+    print(f"Choferes encontrados: {[c.id_usuario for c in choferes]}")
+
     for user in choferes:
         if not user.correo:
+            print(f"[CHOFER] Usuario {user.id_usuario} sin correo, se omite")
             continue
+
+        if not user.chofer:
+            print(f"[CHOFER] Usuario {user.id_usuario} no tiene chofer asignado, se omite")
+            continue
+
+        id_chofer_real = user.chofer.id_chofer
+
+        # Filtrar asignaciones activas mediante id_usuario
         asignaciones_activas = Asignaciones.query.filter(
-            Asignaciones.id_chofer == user.id_chofer,
+            Asignaciones.id_usuario == user.id_usuario,
             (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
         ).all()
+
         unidades_usuario = [a.id_unidad for a in asignaciones_activas]
         placas_usuario = [p for p in placas_alerta if p.id_unidad in unidades_usuario]
 
-        print(f"Usuario {user.id_chofer} - placas a alertar: {[p.placa for p in placas_usuario]}")
         if not placas_usuario:
+            print(f"[CHOFER] Usuario {user.id_usuario} no tiene placas próximas a vencer")
             continue
 
         lista_usuario_html = "".join([
@@ -3745,9 +4566,13 @@ def enviar_alertas_semanales():
             for p in placas_usuario
         ])
         cuerpo_usuario = f"<html><body><h2>Placas próximas a vencer de sus unidades</h2><ul>{lista_usuario_html}</ul></body></html>"
-        msg_usuario = Message(subject="Placas próximas a vencer de sus unidades", recipients=[user.correo], html=cuerpo_usuario)
+        msg_usuario = Message(
+            subject="Placas próximas a vencer de sus unidades",
+            recipients=[user.correo],
+            html=cuerpo_usuario
+        )
         mail.send(msg_usuario)
-        print(f"✅ Correo enviado a chofer {user.id_chofer} - {user.correo}")
+        print(f"✅ Correo enviado a chofer {user.id_usuario} - {user.correo}")
 
         for p in placas_usuario:
             alerta = Alerta(
@@ -3755,14 +4580,15 @@ def enviar_alertas_semanales():
                 tipo_alerta="placa",
                 descripcion=f"La placa {p.placa} de su unidad está próxima a vencer el {p.fecha_vigencia}",
                 estado="pendiente",
-                detalle={"id_placa": p.id_placa, "id_chofer": user.id_chofer}
+                detalle={"id_placa": p.id_placa, "id_chofer": id_chofer_real, "rol": "Conductor"}
             )
             db.session.add(alerta)
-        db.session.commit()
-        print(f"✅ Alertas registradas para chofer {user.id_chofer}")
+            alertas_generadas.append(alerta)
 
+    # Commit final para todas las alertas
+    db.session.commit()
+    print(f"✅ Alertas registradas: {len(alertas_generadas)}")
     print("✅ Envío de alertas completado")
-
 
 def guardar_archivo_unico(file, carpeta='placas'):
     """Guarda un archivo (imagen o PDF) con nombre único en la carpeta especificada."""
@@ -3789,7 +4615,6 @@ def guardar_archivo_unico(file, carpeta='placas'):
 
 
 
-
 @app.route("/placas/registrar", methods=["POST"])
 def registrar_o_actualizar_placa():
     # ---------------- Directorios ----------------
@@ -3800,23 +4625,41 @@ def registrar_o_actualizar_placa():
     TARJETA_DIR = 'tarjetas_circulacion/'
     HISTORIAL_TARJETA_DIR = 'historial_tarjetas_circulacion/'
 
+    print("------ NUEVA SOLICITUD ------")
+    print("Form data recibida:", request.form)
+    print("Archivos recibidos:", request.files)
     data = request.form
-    usuarioId = data.get("usuarioId", "sistema")  # <-- reemplaza USUARIO_SISTEMA
+    usuarioId = data.get("usuarioId", "sistema")
 
     id_unidad = data.get("id_unidad")
     nueva_placa = data.get("placa")
     folio = data.get("folio")
     fecha_expedicion = data.get("fecha_expedicion")
     fecha_vigencia = data.get("fecha_vigencia")
-    monto_pago = data.get("monto_pago", 0)
+    monto_pago = float(data.get("monto_pago", 0))
+    print(f"Valores extraídos: id_unidad={id_unidad}, placa={nueva_placa}, folio={folio}, fecha_expedicion={fecha_expedicion}, fecha_vigencia={fecha_vigencia}, monto_pago={monto_pago}")
 
-    # Validación básica
     if not id_unidad or not nueva_placa or not fecha_vigencia:
         return jsonify({"error": "Unidad, placa y fecha de vigencia son obligatorios"}), 400
 
-
+    id_unidad = int(id_unidad)
     hoy = date.today()
-    placa_activa = Placas.query.filter_by(id_unidad=id_unidad).first()
+
+    # ---------------- Validaciones de duplicados ----------------
+    if placa_activa and placa_activa.placa == nueva_placa:
+        return jsonify({"error": f"La placa {nueva_placa} ya está activa en esta unidad"}), 409
+
+    if Placas.query.filter(Placas.placa == nueva_placa, Placas.id_unidad != id_unidad).first():
+        return jsonify({"error": f"La placa {nueva_placa} ya está registrada en otra unidad"}), 409
+
+    if Placas.query.filter(Placas.folio == folio, Placas.id_unidad != id_unidad).first():
+        return jsonify({"error": f"El folio {folio} ya está registrado en otra unidad"}), 409
+
+    if HistorialPlaca.query.filter_by(placa=nueva_placa).first():
+        return jsonify({"error": f"La placa {nueva_placa} ya estuvo registrada previamente"}), 409
+
+    if HistorialPlaca.query.filter_by(folio=folio).first():
+        return jsonify({"error": f"El folio {folio} ya estuvo registrado previamente"}), 409
 
     # ---------------- Funciones de archivos ----------------
     def mover_al_historial(field_name, carpeta_historial):
@@ -3836,21 +4679,19 @@ def registrar_o_actualizar_placa():
         archivo.save(ruta)
         return ruta.replace("\\", "/")
 
-    # ---------------- Actualización de placa existente ----------------
+    # ---------------- Aquí sigue toda tu lógica principal de actualización/registro ----------------
+    placa_activa = Placas.query.filter_by(id_unidad=id_unidad).first()
+
     if placa_activa:
         dias_restantes = (placa_activa.fecha_vigencia - hoy).days if placa_activa.fecha_vigencia else 0
         if dias_restantes > 180:
-            return jsonify({
-                "error": f"No se puede registrar nueva placa. Vigencia actual hasta {placa_activa.fecha_vigencia}"
-            }), 400
+            return jsonify({"error": f"No se puede registrar nueva placa. Vigencia actual hasta {placa_activa.fecha_vigencia}"}), 400
 
-        # Mover archivos antiguos al historial
         mover_al_historial("url_placa_frontal", HISTORIAL_DIR)
         mover_al_historial("url_placa_trasera", HISTORIAL_DIR)
         mover_al_historial("url_comprobante_pago", HISTORIAL_PAGO_DIR)
         mover_al_historial("url_tarjeta_circulacion", HISTORIAL_TARJETA_DIR)
 
-        # Guardar en historial usando usuario del frontend
         historial = HistorialPlaca(
             id_placa=placa_activa.id_placa,
             id_unidad=placa_activa.id_unidad,
@@ -3867,21 +4708,18 @@ def registrar_o_actualizar_placa():
         )
         db.session.add(historial)
 
-        # Actualizar placa activa
         placa_activa.placa = nueva_placa
         placa_activa.folio = folio
         placa_activa.fecha_expedicion = fecha_expedicion
         placa_activa.fecha_vigencia = fecha_vigencia
         placa_activa.monto_pago = monto_pago
 
-        # Guardar archivos nuevos
         file_fields = {
             "url_placa_frontal": UPLOAD_DIR,
             "url_placa_trasera": UPLOAD_DIR,
             "comprobante": PAGO_DIR,
             "tarjeta_circulacion": TARJETA_DIR
         }
-
         for field_name, carpeta in file_fields.items():
             archivo = request.files.get(field_name)
             if archivo:
@@ -3894,73 +4732,58 @@ def registrar_o_actualizar_placa():
                     setattr(placa_activa, field_name, ruta)
 
         placa_activa.requiere_renovacion = False
-        db.session.commit()
 
-        # 🔹 Marcar alertas como completadas tras la renovación
-        alertas_pendientes = Alerta.query.filter_by(
+    else:
+        nueva = Placas(
             id_unidad=id_unidad,
-            tipo_alerta="placa",
-            estado="pendiente"
-        ).all()
-        for alerta in alertas_pendientes:
-            alerta.estado = "completada"
-            alerta.fecha_resuelta = datetime.utcnow()
+            placa=nueva_placa,
+            folio=folio,
+            fecha_expedicion=fecha_expedicion,
+            fecha_vigencia=fecha_vigencia,
+            monto_pago=monto_pago,
+            requiere_renovacion=False
+        )
+        file_fields = {
+            "url_placa_frontal": UPLOAD_DIR,
+            "url_placa_trasera": UPLOAD_DIR,
+            "comprobante": PAGO_DIR,
+            "tarjeta_circulacion": TARJETA_DIR
+        }
+        for field_name, carpeta in file_fields.items():
+            archivo = request.files.get(field_name)
+            if archivo:
+                ruta = guardar_archivo_unico(archivo, carpeta)
+                if field_name == "comprobante":
+                    nueva.url_comprobante_pago = ruta
+                elif field_name == "tarjeta_circulacion":
+                    nueva.url_tarjeta_circulacion = ruta
+                else:
+                    setattr(nueva, field_name, ruta)
+        db.session.add(nueva)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Error de integridad: la placa o folio ya existe"}), 409
+
+    unidad = Unidades.query.get(id_unidad)
+    if unidad:
+        unidad.id_placas = placa_activa.id_placa if placa_activa else nueva.id_placa
         db.session.commit()
 
-        return jsonify({"message": "Placa actualizada correctamente"}), 200
-
-    # ---------------- Registro de nueva placa ----------------
-    nueva = Placas(
+    alertas_pendientes = Alerta.query.filter_by(
         id_unidad=id_unidad,
-        placa=nueva_placa,
-        folio=folio,
-        fecha_expedicion=fecha_expedicion,
-        fecha_vigencia=fecha_vigencia,
-        monto_pago=monto_pago,
-        requiere_renovacion=False
-    )
-
-    # Guardar archivos nuevos
-    file_fields = {
-        "url_placa_frontal": UPLOAD_DIR,
-        "url_placa_trasera": UPLOAD_DIR,
-        "comprobante": PAGO_DIR,
-        "tarjeta_circulacion": TARJETA_DIR
-    }
-
-    for field_name, carpeta in file_fields.items():
-        archivo = request.files.get(field_name)
-        if archivo:
-            ruta = guardar_archivo_unico(archivo, carpeta)
-            if field_name == "comprobante":
-                nueva.url_comprobante_pago = ruta
-            elif field_name == "tarjeta_circulacion":
-                nueva.url_tarjeta_circulacion = ruta
-            else:
-                setattr(nueva, field_name, ruta)
-
-    db.session.add(nueva)
+        tipo_alerta="placa",
+        estado="pendiente"
+    ).all()
+    for alerta in alertas_pendientes:
+        alerta.estado = "completada"
+        alerta.fecha_resuelta = datetime.utcnow()
     db.session.commit()
 
-    return jsonify({"message": "Placa registrada correctamente"}), 200
-
-# ---------------------------
-# Scheduler diario
-# ---------------------------
-scheduler = BackgroundScheduler()
-
-def job_envio_alertas():
-    with app.app_context():  # Contexto de Flask activo
-        print("📌 Iniciando envío de alertas")
-        try:
-            enviar_alertas_semanales()
-            print("✅ Alertas enviadas correctamente")
-        except Exception as e:
-            print(f"❌ Error al enviar alertas: {e}")
-
-# Ejecutar cada 100 segundos
-scheduler.add_job(job_envio_alertas, 'interval', seconds=16060)
-scheduler.start()
+    msg = "Placa actualizada correctamente" if placa_activa else "Placa registrada correctamente"
+    return jsonify({"message": msg}), 200
 
 
 
@@ -3972,7 +4795,10 @@ def eliminar_placa(id_placa):
     if not placa:
         return jsonify({"error": "Placa no encontrada"}), 404
 
-    # Eliminar archivos asociados (solo los de placas)
+    # Guardar el id_unidad antes de borrar
+    id_unidad = placa.id_unidad
+
+    # Eliminar archivos asociados
     for field_name in ["url_placa_frontal", "url_placa_trasera"]:
         file_path = getattr(placa, field_name)
         if file_path and file_path.startswith(UPLOAD_DIR) and os.path.exists(file_path):
@@ -3981,11 +4807,20 @@ def eliminar_placa(id_placa):
             except Exception as e:
                 print(f"Error eliminando archivo {file_path}: {e}")
 
-    # Eliminar registro de la base de datos
+    # Eliminar placa
     db.session.delete(placa)
+
+    # Actualizar unidad
+    unidad = Unidades.query.get(id_unidad)
+    if unidad:
+        unidad.utilitario = "No utilitario"  # Ajusta el campo real que tengas
+        unidad.id_placa = None               # Limpia la relación
+
     db.session.commit()
 
-    return jsonify({"message": "Placa y archivos asociados eliminados correctamente"}), 200
+    return jsonify({
+        "message": "Placa eliminada, archivos borrados y unidad actualizada"
+    }), 200
 
 # ---------------------------
 # Endpoint para consultar alertas
@@ -4149,8 +4984,8 @@ def get_historial_placas():
             "id_historial": h.id_historial,
             "id_placa": h.id_placa,
             "id_unidad": h.id_unidad,
-            "nombre_unidad": unidad.vehiculo if unidad else "N/A",
-            "vehiculo": unidad.vehiculo if unidad else "N/A",
+            "nombre_unidad": unidad.version if unidad else "N/A",
+            "vehiculo": unidad.version if unidad else "N/A",
             "modelo": unidad.modelo if unidad else "N/A",
             "placa": h.placa,
             "folio": h.folio,
@@ -4415,7 +5250,7 @@ def listar_pagos_refrendo_tenencia():
             data.append({
                 "id_pago": pago.id_pago,
                 "id_unidad": pago.id_unidad,
-                "vehiculo": pago.unidad.vehiculo,
+                "version": pago.unidad.version,
                 "marca": pago.unidad.marca,
                 "modelo": pago.unidad.modelo,
                 "fecha_pago": pago.fecha_pago.strftime('%Y-%m-%d') if pago.fecha_pago else "",
@@ -4525,7 +5360,7 @@ def get_historiales():
             data.append({
                 "id_historial": h.id_historial,
                 "id_unidad": h.id_unidad,
-                "vehiculo_modelo": f"{u.vehiculo} {u.modelo}",
+                "vehiculo_modelo": f"{u.version} {u.modelo}",
                 "id_pago": h.id_pago,
                 "tipo_pago": h.tipo_pago,
                 "monto": float(h.monto) if h.monto else 0,
@@ -4551,21 +5386,19 @@ def enviar_alertas_refrendo_tenencia():
     año_actual = hoy.year
     fin_periodo = date(año_actual, 3, 31)
 
+    print(f"[INFO] Fecha actual: {hoy}, fin periodo: {fin_periodo}")
+
     unidades = Unidades.query.all()
     if not unidades:
+        print("[INFO] No hay unidades registradas")
         return []
 
-    # Almacena alertas completas
     alertas_generadas = []
 
-    # ------------------------------------------------------------------------------------------------
-    # 1. Administradores
-    # ------------------------------------------------------------------------------------------------
-    admins = Usuarios.query.filter_by(rol='admin').all()
-    emails_admin = [a.correo for a in admins if a.correo]
-
+    # ----------------------------------------------------------------------------------
+    # 1. Determinar unidades pendientes
+    # ----------------------------------------------------------------------------------
     pendientes = []
-
     for u in unidades:
         pago = Refrendo_Tenencia.query.filter(
             Refrendo_Tenencia.id_unidad == u.id_unidad,
@@ -4574,33 +5407,34 @@ def enviar_alertas_refrendo_tenencia():
 
         if not pago:
             mensaje = (
-                "Pague refrendo antes del 31 de marzo"
-                if hoy <= fin_periodo
+                "Pague refrendo antes del 31 de marzo" if hoy <= fin_periodo
                 else "Debe pagar refrendo y tenencia. Se aplicarán recargos."
             )
-
             pendientes.append({
                 "id_unidad": u.id_unidad,
-                "vehiculo": u.vehiculo,
+                "vehiculo": u.version,
                 "modelo": u.modelo,
                 "mensaje": mensaje
             })
 
-    # -------- Enviar correos a Administradores
-    if emails_admin and pendientes:
+    print(f"[INFO] Total unidades con pago pendiente: {len(pendientes)}")
+    if not pendientes:
+        return []
+
+    # ----------------------------------------------------------------------------------
+    # 2. Alertas para administradores
+    # ----------------------------------------------------------------------------------
+    admins = Usuarios.query.filter_by(rol='admin').all()
+    emails_admin = [a.correo for a in admins if a.correo]
+
+    print(f"[INFO] Total administradores con correo: {len(emails_admin)}")
+
+    if emails_admin:
         lista_html = "".join([
             f"<li><strong>{p['vehiculo']} {p['modelo']}</strong> (ID {p['id_unidad']}): {p['mensaje']}</li>"
             for p in pendientes
         ])
-
-        cuerpo_html = f"""
-        <html>
-        <body>
-            <h2>Unidades con refrendo/tenencia pendiente</h2>
-            <ul>{lista_html}</ul>
-        </body>
-        </html>
-        """
+        cuerpo_html = f"<html><body><h2>Unidades con refrendo/tenencia pendiente</h2><ul>{lista_html}</ul></body></html>"
 
         msg = Message(
             subject=f"Avisos de refrendo/tenencia {año_actual}",
@@ -4608,8 +5442,8 @@ def enviar_alertas_refrendo_tenencia():
             html=cuerpo_html
         )
         mail.send(msg)
+        print("[INFO] Correos enviados a administradores")
 
-        # Registrar alertas para admin
         for p in pendientes:
             alerta = Alerta(
                 id_unidad=p["id_unidad"],
@@ -4621,29 +5455,27 @@ def enviar_alertas_refrendo_tenencia():
             db.session.add(alerta)
             alertas_generadas.append(alerta)
 
-        db.session.commit()
-        print(f"[ADMIN] Alertas enviadas y registradas para {len(emails_admin)} administradores.")
-
-    # ------------------------------------------------------------------------------------------------
-    # 2. Choferes
-    # ------------------------------------------------------------------------------------------------
-    choferes = Usuarios.query.filter_by(rol="chofer").all()
+    # ----------------------------------------------------------------------------------
+    # 3. Alertas para choferes
+    # ----------------------------------------------------------------------------------
+    choferes = Usuarios.query.filter_by(rol="Conductor").all()
+    print(f"[INFO] Total choferes: {len(choferes)}")
 
     for user in choferes:
         if not user.correo:
+            print(f"[CHOFER] Usuario {user.id_usuario} sin correo, se omite")
             continue
 
-        # Unidades asignadas al chofer
+        # Buscar asignaciones mediante id_usuario
         asignaciones = Asignaciones.query.filter(
-            Asignaciones.id_chofer == user.id_chofer,
+            Asignaciones.id_usuario == user.id_usuario,
             (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
         ).all()
 
         ids_unidades_user = [a.id_unidad for a in asignaciones]
+        pendientes_user = [p for p in pendientes if p["id_unidad"] in ids_unidades_user]
 
-        pendientes_user = [
-            p for p in pendientes if p["id_unidad"] in ids_unidades_user
-        ]
+        print(f"[CHOFER] Usuario {user.id_usuario} tiene {len(pendientes_user)} alertas pendientes")
 
         if not pendientes_user:
             continue
@@ -4652,15 +5484,7 @@ def enviar_alertas_refrendo_tenencia():
             f"<li><strong>{p['vehiculo']} {p['modelo']}</strong> (ID {p['id_unidad']}): {p['mensaje']}</li>"
             for p in pendientes_user
         ])
-
-        cuerpo_html = f"""
-        <html>
-        <body>
-            <h2>Refrendo/tenencia pendiente de sus unidades</h2>
-            <ul>{lista_html}</ul>
-        </body>
-        </html>
-        """
+        cuerpo_html = f"<html><body><h2>Refrendo/tenencia pendiente de sus unidades</h2><ul>{lista_html}</ul></body></html>"
 
         msg_user = Message(
             subject="Aviso de refrendo/tenencia",
@@ -4668,37 +5492,24 @@ def enviar_alertas_refrendo_tenencia():
             html=cuerpo_html
         )
         mail.send(msg_user)
+        print(f"[CHOFER] Correo enviado a {user.correo}")
 
-        # Registrar alertas personalizadas para chofer
         for p in pendientes_user:
             alerta = Alerta(
                 id_unidad=p["id_unidad"],
                 tipo_alerta="refrendo_tenencia",
                 descripcion=f"La unidad {p['vehiculo']} {p['modelo']} ({p['id_unidad']}) requiere pago: {p['mensaje']}",
                 estado="pendiente",
-                detalle={"id_chofer": user.id_chofer, "rol": "chofer"}
+                detalle={"id_chofer": user.chofer.id_chofer if user.chofer else None, "rol": "Conductor"}
             )
             db.session.add(alerta)
             alertas_generadas.append(alerta)
 
-        db.session.commit()
-        print(f"[CHOFER] Alertas enviadas al chofer {user.id_chofer}")
-
+    db.session.commit()
     print(f"[INFO] Total alertas registradas: {len(alertas_generadas)}")
     return alertas_generadas
 
 
-# --------------------------------------------
-# Programador semanal automático
-# --------------------------------------------
-
-scheduler = BackgroundScheduler()
-def job_enviar_alertas_refrendo_tenencia():
-    with app.app_context():
-        enviar_alertas_refrendo_tenencia()
-
-scheduler.add_job(job_enviar_alertas_refrendo_tenencia, 'interval', seconds=25080)
-scheduler.start()
 
 # --------------------------------------------
 # Endpoint manual para pruebas
@@ -4812,6 +5623,89 @@ def programar_por_marca(id_unidad):
     db.session.commit()
     return jsonify({"message":"Programados creados","created": created}), 201
 
+
+def enviar_alertas_mantenimientos():
+    print("📌 Iniciando envío de alertas de mantenimientos")
+    hoy = date.today()
+    anticipacion_dias = 25  # alertar 15 días antes
+    anticipacion_km = 700   # alertar 500 km antes
+
+    # --- 1. Traer todos los mantenimientos programados ---
+    mantenimientos = MantenimientosProgramados.query.all()
+    alertas_generadas = []
+
+    for m in mantenimientos:
+        if not m.proximo_mantenimiento or not m.proximo_kilometraje:
+            continue
+
+        # Verificar proximidad de fecha o kilometraje
+        alerta_fecha = (m.proximo_mantenimiento - hoy).days <= anticipacion_dias
+        alerta_km = (m.proximo_kilometraje - (m.unidad.kilometraje_actual or 0)) <= anticipacion_km
+
+        if not (alerta_fecha or alerta_km):
+            continue
+
+        # --- Administradores ---
+        admins = Usuarios.query.filter_by(rol='admin').all()
+        emails_admin = [a.correo for a in admins if a.correo]
+        if emails_admin:
+            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (ID {m.id_unidad}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje}</li>"
+            cuerpo_html = f"<html><body><h2>Mantenimientos próximos</h2><ul>{lista_html}</ul></body></html>"
+            msg = Message(
+                subject="Alertas de mantenimiento próximo",
+                recipients=emails_admin,
+                html=cuerpo_html
+            )
+            mail.send(msg)
+            print(f"[INFO] Correo enviados a administradores: {emails_admin}")
+
+            alerta_admin = Alerta(
+                id_unidad=m.id_unidad,
+                tipo_alerta="mantenimiento",
+                descripcion=f"Mantenimiento próximo: Fecha {m.proximo_mantenimiento}, Kilometraje {m.proximo_kilometraje}",
+                estado="pendiente",
+                detalle={"rol": "admin"}
+            )
+            db.session.add(alerta_admin)
+            alertas_generadas.append(alerta_admin)
+
+        # --- Choferes ---
+        asignaciones = Asignaciones.query.filter(
+            Asignaciones.id_unidad == m.id_unidad,
+            (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
+        ).all()
+
+        for a in asignaciones:
+            if not a.chofer or not a.chofer.usuario.correo:
+                continue
+
+            user = a.chofer.usuario
+            id_chofer_real = a.chofer.id_chofer
+
+            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (ID {m.id_unidad}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje}</li>"
+            cuerpo_html = f"<html><body><h2>Mantenimiento próximo de sus unidades</h2><ul>{lista_html}</ul></body></html>"
+            msg = Message(
+                subject="Mantenimiento próximo de su unidad",
+                recipients=[user.correo],
+                html=cuerpo_html
+            )
+            mail.send(msg)
+            print(f"[CHOFER] Correo enviado a {user.correo}")
+
+            alerta_chofer = Alerta(
+                id_unidad=m.id_unidad,
+                tipo_alerta="mantenimiento",
+                descripcion=f"Mantenimiento próximo: Fecha {m.proximo_mantenimiento}, Kilometraje {m.proximo_kilometraje}",
+                estado="pendiente",
+                detalle={"rol": "Conductor", "id_chofer": id_chofer_real}
+            )
+            db.session.add(alerta_chofer)
+            alertas_generadas.append(alerta_chofer)
+
+    db.session.commit()
+    print(f"[INFO] Total alertas registradas: {len(alertas_generadas)}")
+    return alertas_generadas
+
 # ---------------------
 # RUTAS: Listar programados
 # ---------------------
@@ -4830,7 +5724,8 @@ def listar_programados():
         sub_placa.c.placa,
         Unidades.marca,
         Unidades.modelo,
-        Unidades.clase_tipo,
+        Unidades.tipo,
+        Unidades.clase,  # <--- aquí se agrega
         Unidades.kilometraje_actual,
         TiposMantenimiento.nombre_tipo,
         MantenimientosProgramados.fecha_ultimo_mantenimiento,
@@ -4854,7 +5749,7 @@ def listar_programados():
             "id_mantenimiento_programado": row.id_mantenimiento_programado,
             "id_unidad": row.id_unidad,
             "modelo": row.modelo,
-            "clase_tipo": row.clase_tipo,
+            "clase_tipo": row.clase,
             "placa": row.placa,
             "marca": row.marca,
             "tipo": row.nombre_tipo,
@@ -5259,26 +6154,19 @@ def eliminar_empresa(id_empresa):
     db.session.commit()
     return jsonify({'message': 'Empresa eliminada'})
 
-
-
 # -------------------------------
-# Listar sucursales (opcional por empresa)
+# Listar todas las sucursales
 # -------------------------------
 @app.route("/sucursales", methods=["GET"])
 def get_sucursal():
-    id_empresa = request.args.get("empresa")
-    if id_empresa:
-        sucursales = Sucursal.query.filter_by(id_empresa=id_empresa).all()
-    else:
-        sucursales = Sucursal.query.all()
+    sucursales = Sucursal.query.all()
     return jsonify([{
-        "id_sucursal": s.id_sucursal,
-        "nombre": s.nombre,
+        "id_sucursal": s.id_sede,
+        "nombre": s.name,
         "direccion": s.direccion,
         "telefono": s.telefono,
         "correo": s.correo,
-        "horario": s.horario,
-        "id_empresa": s.id_empresa
+        "horario": s.horario
     } for s in sucursales])
 
 # -------------------------------
@@ -5287,22 +6175,22 @@ def get_sucursal():
 @app.route("/sucursales", methods=["POST"])
 def create_sucursal():
     data = request.get_json()
-    # Validar empresa
-    empresa = Empresa.query.get(data.get("id_empresa"))
-    if not empresa:
-        return jsonify({"error": "La empresa no existe"}), 400
 
     nueva = Sucursal(
-        nombre=data.get("nombre"),
+        name=data.get("name") or data.get("nombre"),  # acepta 'name' o 'nombre'
         direccion=data.get("direccion"),
         telefono=data.get("telefono"),
         correo=data.get("correo"),
-        horario=data.get("horario"),
-        id_empresa=data.get("id_empresa")
+        horario=data.get("horario")
     )
+    
     db.session.add(nueva)
     db.session.commit()
-    return jsonify({"message": "Sucursal creada exitosamente", "id_sucursal": nueva.id_sucursal})
+    
+    return jsonify({
+        "message": "Sucursal creada exitosamente",
+        "id_sucursal": nueva.id_sede
+    })
 
 # -------------------------------
 # Actualizar sucursal
@@ -5401,7 +6289,6 @@ def listar_placas():
         return jsonify({"error": str(e)}), 500
 
 
-
 @app.route('/api/dashboard/unidades_completo', methods=['GET'])
 def dashboard_unidades_completo():
     conn = db.engine.raw_connection()
@@ -5409,7 +6296,7 @@ def dashboard_unidades_completo():
         cursor = conn.cursor()
 
         id_empresa = request.args.get('id_empresa')
-        sucursal = request.args.get('sucursal')
+        id_sucursal = request.args.get('sucursal')
 
         filtros = []
         params = []
@@ -5418,16 +6305,16 @@ def dashboard_unidades_completo():
             filtros.append("U.id_empresa = %s")
             params.append(id_empresa)
 
-        if sucursal:
-            filtros.append("U.sucursal = %s")
-            params.append(sucursal)
+        if id_sucursal:
+            filtros.append("U.id_sucursal = %s")
+            params.append(id_sucursal)
 
         where_clause = f"WHERE {' AND '.join(filtros)}" if filtros else ""
 
-        # ===================================================================
+        # =========================================================
         # TOTALES GENERALES
-        # ===================================================================
-        query = f"""
+        # =========================================================
+        query_totales = f"""
         SELECT
             COUNT(U.id_unidad) AS total_unidades,
             COUNT(G.id_garantia) AS total_polizas
@@ -5437,13 +6324,13 @@ def dashboard_unidades_completo():
             WHERE G1.id_garantia = (
                 SELECT G2.id_garantia 
                 FROM Garantias G2 
-                WHERE G2.id_unidad = G1.id_unidad 
+                WHERE G2.id_unidad = G1.id_unidad
                 ORDER BY G2.vigencia DESC LIMIT 1
             )
         ) G ON U.id_unidad = G.id_unidad
         {where_clause};
         """
-        cursor.execute(query, tuple(params))
+        cursor.execute(query_totales, tuple(params))
         row = cursor.fetchone()
         columnas = [desc[0] for desc in cursor.description]
         totales_sql = dict(zip(columnas, row))
@@ -5451,15 +6338,15 @@ def dashboard_unidades_completo():
         total_unidades = totales_sql["total_unidades"]
         total_polizas = totales_sql["total_polizas"]
 
-        # ===================================================================
-        # POR SUCURSAL (DETALLE REAL CON NOMBRE DE SUCURSAL)
-        # ===================================================================
+        # =========================================================
+        # DETALLE POR SUCURSAL
+        # =========================================================
         query_sucursal = f"""
         SELECT
             U.id_unidad,
             U.marca,
-            U.vehiculo,
-            S.nombre AS sucursal,
+            U.version AS vehiculo,
+            S.name AS sucursal,
             MAX(V.ultima_verificacion) AS ultima_verificacion,
             MAX(V.holograma) AS holograma,
             MAX(V.engomado) AS engomado,
@@ -5478,9 +6365,9 @@ def dashboard_unidades_completo():
                 ORDER BY V2.ultima_verificacion DESC LIMIT 1
             )
         ) V ON U.id_unidad = V.id_unidad
-        LEFT JOIN Sucursales S ON U.sucursal = S.id_sucursal
+        LEFT JOIN Sucursales S ON U.id_sucursal = S.id_sede
         {where_clause}
-        GROUP BY U.id_unidad, U.marca, U.vehiculo, S.nombre;
+        GROUP BY U.id_unidad, U.marca, U.version, S.name;
         """
         cursor.execute(query_sucursal, tuple(params))
         columns_suc = [desc[0] for desc in cursor.description]
@@ -5536,30 +6423,30 @@ def dashboard_unidades_completo():
                 sucursales[suc]["sin_verificacion"] += 1
                 sucursales[suc]["estado_verificacion"] = "PENDIENTE"
 
-        # ===================================================================
+        # =========================================================
         # POR ASEGURADORA
-        # ===================================================================
+        # =========================================================
         query_aseguradora = f"""
         SELECT
             g.aseguradora,
             COUNT(g.id_garantia) AS total_polizas
         FROM Garantias g
         JOIN Unidades u ON g.id_unidad = u.id_unidad
-        {where_clause.replace('U.', 'u.')}
+        {where_clause.replace("U.", "u.")}
         GROUP BY g.aseguradora;
         """
         cursor.execute(query_aseguradora, tuple(params))
         columns_aseg = [desc[0] for desc in cursor.description]
         aseguradoras = [dict(zip(columns_aseg, row)) for row in cursor.fetchall()]
 
-        # ===================================================================
+        # =========================================================
         # UNIDADES SIN POLIZA
-        # ===================================================================
+        # =========================================================
         query_sin_poliza = f"""
-        SELECT u.id_unidad, u.marca, u.vehiculo, S.nombre AS sucursal
+        SELECT u.id_unidad, u.marca, u.version AS vehiculo, S.name AS sucursal
         FROM Unidades u
         LEFT JOIN Garantias g ON g.id_unidad = u.id_unidad
-        LEFT JOIN Sucursales S ON u.sucursal = S.id_sucursal
+        LEFT JOIN Sucursales S ON u.id_sucursal = S.id_sede
         {where_clause}
         WHERE g.id_garantia IS NULL;
         """
@@ -5567,9 +6454,9 @@ def dashboard_unidades_completo():
         columns_sin = [desc[0] for desc in cursor.description]
         sin_poliza = [dict(zip(columns_sin, row)) for row in cursor.fetchall()]
 
-        # ===================================================================
+        # =========================================================
         # SALIDA FINAL
-        # ===================================================================
+        # =========================================================
         dashboard = {
             "totales": {
                 "total_unidades": total_unidades,
@@ -5597,35 +6484,37 @@ def dashboard_unidades_completo():
 ##===================================================================
 #Alertas del sistema mensajes
 #=====================================================================                                                      
-from sqlalchemy import cast, Integer
 
 @app.route("/alertas/usuario/<int:user_id>", methods=["GET"])
 def get_alertas_usuario(user_id):
-    
-    # Obtener usuario para verificar rol
-    usuario = Usuarios.query.get(user_id)
+    # Obtener el usuario
+    usuario = db.session.get(Usuarios, user_id)
     if not usuario:
         return jsonify({"error": "Usuario no encontrado"}), 404
-    
-    
-    if usuario.rol == "admin":
-        # Admin: devuelve todas las alertas
-        alertas = Alerta.query.order_by(Alerta.fecha_generada.desc()).all()
-        print(f"📬 Admin, total alertas: {len(alertas)}")
-    else:
-        # Chofer: devuelve solo alertas asignadas a su id_chofer
-        if not usuario.id_chofer:
-            alertas = []
-        else:
-            alertas = Alerta.query.filter(
-                cast(Alerta.detalle['id_chofer'], Integer) == usuario.id_chofer
-            ).order_by(Alerta.fecha_generada.desc()).all()
-            print(f"📬 Chofer, alertas encontradas para id_chofer {usuario.id_chofer}: {len(alertas)}")
 
-    # Construir resultado
-    resultado = []
-    for a in alertas:
-        resultado.append({
+    # Query base de alertas
+    query_alertas = Alerta.query.order_by(Alerta.fecha_generada.desc())
+
+    if usuario.rol != "admin":
+        # Prioridad: filtrar por id_chofer si tiene chofer, sino por id_usuario
+        if usuario.chofer:
+            filtro_valor = usuario.chofer.id_chofer
+            campo_detalle = 'id_chofer'
+        else:
+            filtro_valor = usuario.id_usuario
+            campo_detalle = 'id_usuario'
+
+        query_alertas = query_alertas.filter(
+            cast(Alerta.detalle[campo_detalle], Integer) == filtro_valor
+        )
+        alertas = query_alertas.all()
+        print(f"📬 Alertas encontradas para {campo_detalle} {filtro_valor}: {len(alertas)}")
+    else:
+        alertas = query_alertas.all()
+        print(f"📬 Admin, total alertas: {len(alertas)}")
+
+    resultado = [
+        {
             "id_alerta": a.id_alerta,
             "id_unidad": a.id_unidad,
             "tipo_alerta": a.tipo_alerta,
@@ -5634,13 +6523,98 @@ def get_alertas_usuario(user_id):
             "fecha_generada": a.fecha_generada.isoformat(),
             "fecha_resuelta": a.fecha_resuelta.isoformat() if a.fecha_resuelta else None,
             "detalle": a.detalle
-        })
-
+        }
+        for a in alertas
+    ]
     return jsonify({"alertas": resultado})
 
 
+@app.route("/solicitudes_mensajes/depurar", methods=["DELETE"])
+def depurar_mensajes():
+    limite = datetime.utcnow() - timedelta(days=90)
 
+    mensajes = SolicitudFallaMensajes.query.filter(
+        SolicitudFallaMensajes.fecha < limite
+    ).all()
+
+    eliminados = 0
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads/mensajes")
+
+    for mensaje in mensajes:
+        # Eliminar archivo adjunto
+        if mensaje.archivo_adjunto:
+            ruta = os.path.join(UPLOAD_FOLDER, mensaje.archivo_adjunto)
+            if os.path.exists(ruta):
+                os.remove(ruta)
+
+        db.session.delete(mensaje)
+        eliminados += 1
+
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Depuración completada",
+        "mensajes_eliminados": eliminados
+    }), 200
+
+
+
+
+# --------------------------- Jobs ---------------------------
+
+def job_envio_alertas_verificacion():
+    with app.app_context():
+        try:
+            enviar_alertas_verificacion()
+        except Exception as e:
+            print("Error:", e)
+
+def job_envio_alertas():
+    with app.app_context():
+        try:
+            enviar_alertas_semanales()
+        except Exception as e:
+            print("Error:", e)
+
+def job_enviar_alertas_refrendo_tenencia():
+    with app.app_context():
+        try:
+            enviar_alertas_refrendo_tenencia()
+        except Exception as e:
+            print("Error:", e)
+
+# Job para scheduler
+def job_enviar_alertas_garantias():
+    with app.app_context():
+        try:
+            enviar_alertas_garantias()
+        except Exception as e:
+            print("Error al enviar alertas de garantías:", e)
+
+def job_enviar_alertas_mantenimientos():
+    with app.app_context():
+        try:
+            enviar_alertas_mantenimientos()
+        except Exception as e:
+            print("Error al enviar alertas de garantías:", e)
+
+bcrypt = Bcrypt(app)
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(job_envio_alertas_verificacion, 'interval', days=7)
+scheduler.add_job(job_envio_alertas, 'interval', days=7)
+scheduler.add_job(job_enviar_alertas_refrendo_tenencia, 'interval', days=7)
+scheduler.add_job(job_enviar_alertas_garantias, 'interval', days=7)
+scheduler.add_job(job_enviar_alertas_mantenimientos, 'interval',  days=7)
+
+
+scheduler.start()
+
+# --------------------------- MAIN ---------------------------
 
 if __name__ == '__main__':
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+
+    app.run(host='0.0.0.0', port=5000, debug=True)#, use_reloader=False)
+
+

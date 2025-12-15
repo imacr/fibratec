@@ -57,7 +57,7 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
 
   // Cargar choferes existentes si el rol es chofer
   useEffect(() => {
-    if (formData.rol === "chofer") {
+    if (formData.rol === "Conductor") {
       fetch(`${BASE_URL}/api/choferes`, {
         headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
       })
@@ -91,7 +91,7 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (formData.rol === "chofer" && formData.crearChofer && !validarCamposChofer()) return;
+    if (formData.rol === "Conductor" && formData.crearChofer && !validarCamposChofer()) return;
 
     // Preparar payload
     const payload = {
@@ -104,7 +104,7 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
 
     if (formData.contraseña) payload.contraseña = formData.contraseña;
 
-    if (formData.rol === 'chofer') {
+    if (formData.rol === 'Conductor') {
       if (formData.crearChofer) {
         payload.crear_chofer = true;
         payload.chofer_data = {
@@ -178,7 +178,7 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
         <select name="rol" value={formData.rol} onChange={handleChange}>
           <option value="admin">Admin</option>
           <option value="usuario">Usuario</option>
-          <option value="chofer">Chofer</option>
+          <option value="Conductor">Conductor</option>
         </select>
 
         <select name="estado" value={formData.estado} onChange={handleChange}>
@@ -186,14 +186,14 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
           <option value="inactivo">Inactivo</option>
         </select>
 
-        {formData.rol === "chofer" && (
+        {formData.rol === "Conductor" && (
           <>
             <label>
               <input type="checkbox" name="crearChofer" checked={formData.crearChofer} onChange={handleChange} />
               Crear nuevo chofer
             </label>
 
-            {formData.crearChofer ? (
+            {formData.crearChofer && (
               <>
                 <input type="text" name="curp" placeholder="CURP" value={formData.curp} onChange={handleChange} required />
                 <input type="text" name="calle" placeholder="Calle" value={formData.calle} onChange={handleChange} />
@@ -202,15 +202,8 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
                 <input type="text" name="municipio" placeholder="Municipio" value={formData.municipio} onChange={handleChange} />
                 <input type="text" name="licencia_folio" placeholder="Folio Licencia" value={formData.licencia_folio} onChange={handleChange} required />
                 <input type="text" name="licencia_tipo" placeholder="Tipo Licencia" value={formData.licencia_tipo} onChange={handleChange} required />
-                <input type="date" name="licencia_vigencia" value={formData.licencia_vigencia} onChange={handleChange} required />
+                <input type="date" name="licencia_vigencia" value={formData.licencia_vigencia || ""} onChange={handleChange} required />
               </>
-            ) : (
-              <select name="chofer" value={formData.chofer || ""} onChange={handleChange} required>
-                <option value="">Selecciona un chofer existente</option>
-                {choferesExistentes.map(c => (
-                  <option key={c.id_chofer} value={c.id_chofer}>{c.nombre} ({c.curp})</option>
-                ))}
-              </select>
             )}
           </>
         )}

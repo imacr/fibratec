@@ -190,7 +190,6 @@ const Garantias = () => {
   <tr>
     <th style={{ display: "none" }}>ID</th>
     <th>Unidad</th>
-    <th className="col-chofer">Chofer</th>
     <th>Marca</th>
     <th>Vehículo</th>
     <th>Aseguradora</th>
@@ -210,10 +209,9 @@ const Garantias = () => {
               {currentGarantias.map(g => (
                 <tr key={g.id_garantia}>
                   <td style={{ display: "none" }}>{g.id_garantia}</td>
-                  <td>{g.id_unidad}</td>
-                  <td className="col-chofer">{g.chofer_asignado}</td>
+                  <td>{g.cve}</td>
                   <td>{g.marca}</td>
-                  <td>{g.vehiculo}</td>
+                  <td>{g.version}</td>
                   <td>{g.aseguradora}</td>
                   <td>{g.tipo_garantia}</td>
                   <td>{g.no_poliza}</td>

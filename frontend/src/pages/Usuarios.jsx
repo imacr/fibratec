@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import './Unidades.CSS'; 
+import './Unidades.css'; 
 import RegistrarUsuario from "./RegistrarUsuario";
 import { API_URL } from "../config"; 
 
@@ -58,25 +58,57 @@ const Usuarios = () => {
     fetchUsuarios();
   }, []);
 
-  const handleDeleteUsuario = async (id_usuario) => {
-    if (!window.confirm("¿Estás seguro de eliminar este usuario?")) return;
 
-    try {
-      const response = await fetch(`${API_URL}/api/usuarios/${id_usuario}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+const handleDeleteUsuario = async (id_usuario) => {
+  // Pregunta de confirmación con SweetAlert
+  const result = await Swal.fire({
+    title: '¿Estás seguro?',
+    text: "¡Esta acción eliminará el usuario y su conductor asociado!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Sí, eliminar',
+    cancelButtonText: 'Cancelar'
+  });
 
-      if (!response.ok) throw new Error("No se pudo eliminar el usuario");
+  if (!result.isConfirmed) return; // Si canceló, no hacemos nada
 
-      setUsuarios(usuarios.filter(u => u.id_usuario !== id_usuario));
-    } catch (err) {
-      console.error(err);
-      alert("Error al eliminar usuario: " + err.message);
+  try {
+    const response = await fetch(`${API_URL}/api/usuarios/${id_usuario}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "No se pudo eliminar el usuario");
     }
-  };
+
+    // Actualizamos el estado local eliminando al usuario
+    setUsuarios(usuarios.filter(u => u.id_usuario !== id_usuario));
+
+    // Mostrar alerta de éxito
+    Swal.fire({
+      title: 'Eliminado',
+      text: 'El usuario se eliminó correctamente',
+      icon: 'success',
+      confirmButtonColor: '#28a745'
+    });
+
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      title: 'Error',
+      text: `No se pudo eliminar el usuario: ${err.message}`,
+      icon: 'error',
+      confirmButtonColor: '#dc3545'
+    });
+  }
+};
+
 
   if (loading) return <div className="mensaje-estado">Cargando usuarios...</div>;
   if (error) return <div className="mensaje-estado error">{error}</div>;

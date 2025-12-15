@@ -100,6 +100,20 @@ export default function TiposMantenimiento() {
           </tbody>
         </table>
       </div>
+      <div className="card-wrapper">
+  {tipos.length === 0 ? (
+    <p className="mensaje-estado">No hay tipos de mantenimiento registrados.</p>
+  ) : (
+    tipos.map(t => (
+      <div key={t.id_tipo_mantenimiento} className="unidad-card">
+        <p><b>ID:</b> {t.id_tipo_mantenimiento}</p>
+        <p><b>Nombre:</b> {t.nombre_tipo}</p>
+        <p><b>Descripción:</b> {t.descripcion || "—"}</p>
+      </div>
+    ))
+  )}
+</div>
+
     </div>
   );
 }

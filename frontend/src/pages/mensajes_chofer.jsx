@@ -140,96 +140,100 @@ export default function MensajesChoferEpic() {
 
   return (
     <div className="mensajes-chofer-container">
-      {solicitudes.map((solicitud) => (
-        <div key={solicitud.id_solicitud} className="mensajes-chofer-solicitud">
-          <div className="mensajes-chofer-solicitud-header">
-            <h3>
-              Solicitud #{solicitud.id_solicitud} - Estado: {solicitud.estado}
-            </h3>
-          </div>
+  {solicitudes.length === 0 ? (
+    <div className="mensajes-chofer-empty">
+      <p>No hay mensajes disponibles.</p>
+    </div>
+  ) : (
+    solicitudes.map((solicitud) => (
+      <div key={solicitud.id_solicitud} className="mensajes-chofer-solicitud">
+        <div className="mensajes-chofer-solicitud-header">
+          <h3>
+            Solicitud #{solicitud.id_solicitud} - Estado: {solicitud.estado}
+          </h3>
+        </div>
 
-          <div className="mensajes-chofer-mensajes">
-            {solicitud.mensajes.map((m) => (
+        <div className="mensajes-chofer-mensajes">
+          {solicitud.mensajes.length === 0 ? (
+            <p className="mensajes-chofer-empty">No hay mensajes para esta solicitud.</p>
+          ) : (
+            solicitud.mensajes.map((m) => (
               <div key={m.id_mensaje} className={`mensajes-chofer-bubble ${m.quien}`}>
                 <p>{m.mensaje}</p>
                 {m.archivo_adjunto && renderArchivo(m.archivo_adjunto)}
                 <small>{new Date(m.fecha).toLocaleString()}</small>
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-          <div className="mensajes-chofer-footer">
-            <textarea
-              className="mensajes-chofer-textarea"
-              placeholder="Escribe un mensaje o adjunta un archivo..."
-              value={respuestas[solicitud.id_solicitud] || ""}
+        <div className="mensajes-chofer-footer">
+          <textarea
+            className="mensajes-chofer-textarea"
+            placeholder="Escribe un mensaje o adjunta un archivo..."
+            value={respuestas[solicitud.id_solicitud] || ""}
+            onChange={(e) =>
+              setRespuestas((prev) => ({
+                ...prev,
+                [solicitud.id_solicitud]: e.target.value,
+              }))
+            }
+          />
+          <div className="mensajes-chofer-footer-actions">
+            <input
+              type="file"
+              accept="*/*"
               onChange={(e) =>
-                setRespuestas((prev) => ({
+                setArchivos((prev) => ({
                   ...prev,
-                  [solicitud.id_solicitud]: e.target.value,
+                  [solicitud.id_solicitud]: e.target.files[0],
                 }))
               }
             />
-            <div className="mensajes-chofer-footer-actions">
-              <input
-                type="file"
-                accept="*/*"
-                onChange={(e) =>
-                  setArchivos((prev) => ({
-                    ...prev,
-                    [solicitud.id_solicitud]: e.target.files[0],
-                  }))
-                }
-              />
-              <button
-                className="mensajes-chofer-button"
-                onClick={() => enviarMensaje(solicitud.id_solicitud)}
-              >
-                Enviar
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {modalArchivo && (
-        <div className="mensajes-chofer-modal-overlay" onClick={() => setModalArchivo(null)}>
-          <div className="mensajes-chofer-modal-content" onClick={(e) => e.stopPropagation()}>
             <button
-              className="mensajes-chofer-modal-close"
-              onClick={() => setModalArchivo(null)}
+              className="mensajes-chofer-button"
+              onClick={() => enviarMensaje(solicitud.id_solicitud)}
             >
-              ×
+              Enviar
             </button>
-
-            {["jpg", "jpeg", "png", "gif"].includes(modalArchivo.ext) && (
-              <img
-                src={modalArchivo.url}
-                alt="Archivo"
-              />
-            )}
-
-            {["mp4", "webm", "ogg"].includes(modalArchivo.ext) && (
-              <video
-                src={modalArchivo.url}
-                controls
-                autoPlay
-              />
-            )}
-
-            {modalArchivo.ext === "pdf" && (
-              <div style={{ width: "80vw", height: "80vh", overflow: "auto", borderRadius: "10px" }}>
-                <iframe
-                  src={modalArchivo.url}
-                  style={{ width: "100%", height: "100%", border: "none" }}
-                  title="PDF"
-                />
-              </div>
-            )}
           </div>
         </div>
-      )}
+      </div>
+    ))
+  )}
+
+  {modalArchivo && (
+    <div className="mensajes-chofer-modal-overlay" onClick={() => setModalArchivo(null)}>
+      <div className="mensajes-chofer-modal-content" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="mensajes-chofer-modal-close"
+          onClick={() => setModalArchivo(null)}
+        >
+          ×
+        </button>
+
+        {["jpg", "jpeg", "png", "gif"].includes(modalArchivo.ext) && (
+          <img src={modalArchivo.url} alt="Archivo" />
+        )}
+
+        {["mp4", "webm", "ogg"].includes(modalArchivo.ext) && (
+          <video src={modalArchivo.url} controls autoPlay />
+        )}
+
+        {modalArchivo.ext === "pdf" && (
+          <div style={{ width: "80vw", height: "80vh", overflow: "auto", borderRadius: "10px" }}>
+            <iframe
+              src={modalArchivo.url}
+              style={{ width: "100%", height: "100%", border: "none" }}
+              title="PDF"
+            />
+          </div>
+        )}
+      </div>
     </div>
+  )}
+</div>
+
   );
 }

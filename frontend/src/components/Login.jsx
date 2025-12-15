@@ -45,7 +45,7 @@ const Login = ({ onLogin }) => {
             // Redirige según rol
              setTimeout(() => {
                 if (rol === "admin") navigate("/");
-                else if (rol === "chofer") navigate("/Datoschfer");
+                else if (rol === "Conductor") navigate("/Datoschfer");
                 else navigate("/"); // fallback
             }, 50);
         }

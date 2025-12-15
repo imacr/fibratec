@@ -1,14 +1,13 @@
+// CambiarContraseña.jsx
 import React, { useState } from "react";
 import Swal from "sweetalert2";
 import { BASE_URL } from "../config";
-import "./CambiarContraseña.css";
-import { useNavigate } from "react-router-dom";
+import "./Cambiarcontraseña.css";
 
 const CambiarContraseña = ({ usuarioId }) => {
   const [contraseña, setContraseña] = useState("");
   const [confirmarContraseña, setConfirmarContraseña] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,7 +38,7 @@ const CambiarContraseña = ({ usuarioId }) => {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify({ contraseña }),
       });
@@ -58,7 +57,6 @@ const CambiarContraseña = ({ usuarioId }) => {
 
       setContraseña("");
       setConfirmarContraseña("");
-      navigate("/"); // regreso al dashboard
     } catch (err) {
       console.error(err);
       Swal.fire({
@@ -98,7 +96,10 @@ const CambiarContraseña = ({ usuarioId }) => {
             <button
               type="button"
               className="btn-cancelar"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                setContraseña("");
+                setConfirmarContraseña("");
+              }}
             >
               Cancelar
             </button>

@@ -179,6 +179,29 @@ export default function Sucursales() {
           </tbody>
         </table>
       </div>
+          <div className="card-wrapper">
+  {sucursales.length === 0 ? (
+    <p className="mensaje-estado">No hay sucursales registradas</p>
+  ) : (
+    sucursales.map(s => {
+      const empresa = empresas.find(e => e.id_empresa === s.id_empresa);
+      return (
+        <div key={s.id_sucursal} className="unidad-card">
+          <h3>{s.nombre}</h3>
+          <p><b>Dirección:</b> {s.direccion}</p>
+          <p><b>Teléfono:</b> {s.telefono}</p>
+          <p><b>Correo:</b> {s.correo}</p>
+          <p><b>Horario:</b> {s.horario}</p>
+          <p><b>Empresa:</b> {empresa ? empresa.nombre_comercial : "N/A"}</p>
+          <div className="actions-container">
+            <button className="icon-edit" onClick={() => handleEdit(s)}>✎</button>
+            <button className="icon-delete" onClick={() => handleDelete(s.id_sucursal)}>🗑</button>
+          </div>
+        </div>
+      );
+    })
+  )}
+</div>
 
       {/* Modal */}
       {modalOpen && (
@@ -236,19 +259,6 @@ export default function Sucursales() {
               />
             </div>
 
-            <div className="form-group">
-              <label>Empresa</label>
-              <Select
-                options={empresas.map(e => ({ value: e.id_empresa, label: e.nombre_comercial }))}
-                value={
-                  formData.id_empresa
-                    ? { value: formData.id_empresa, label: empresas.find(e => e.id_empresa === formData.id_empresa)?.nombre_comercial }
-                    : null
-                }
-                onChange={handleEmpresaChange}
-                placeholder="Selecciona empresa"
-              />
-            </div>
 
             <button type="submit" className="btn-registrar-garantia">
               {formData.id_sucursal ? "Actualizar" : "Agregar"}

@@ -225,14 +225,42 @@ export default function Placas() {
         <div style={{ width: "300px" }}>
           <label style={{ fontSize: "0.9rem" }}>Verificar unidad para reemplazo:</label>
           <Select
-            options={unidades.map(u => ({ value: u.id_unidad, label: `${u.id_unidad} - ${u.marca} ${u.vehiculo} ${u.modelo}` }))}
-            value={form.id_unidad ? { value: form.id_unidad, label: unidades.find(u => u.id_unidad === form.id_unidad) ? `${form.id_unidad} - ${unidades.find(u => u.id_unidad === form.id_unidad).marca} ${unidades.find(u => u.id_unidad === form.id_unidad).vehiculo}` : form.id_unidad } : null}
-            onChange={opt => setForm(prev => ({ ...prev, id_unidad: opt ? opt.value : "" }))}
+            options={unidades.map(u => ({
+              value: u.id_unidad,
+              label: `${u.cve} - ${u.marca} ${u.version} ${u.modelo}`
+            }))}
+
+            value={
+              form.id_unidad
+                ? (() => {
+                    const unidad = unidades.find(u => u.id_unidad === form.id_unidad);
+                    return unidad
+                      ? {
+                          value: unidad.id_unidad,
+                          label: `${unidad.cve} - ${unidad.marca} ${unidad.version} ${unidad.modelo}`
+                        }
+                      : null;
+                  })()
+                : null
+            }
+
+            onChange={opt =>
+              setForm(prev => ({
+                ...prev,
+                id_unidad: opt ? opt.value : ""
+              }))
+            }
+
             isClearable
             isSearchable
             placeholder="Busca o selecciona unidad"
-            styles={{ container: base => ({ ...base, width: "100%" }), control: base => ({ ...base, minHeight: 35 }), menu: base => ({ ...base, zIndex: 9999 }) }}
+            styles={{
+              container: base => ({ ...base, width: "100%" }),
+              control: base => ({ ...base, minHeight: 35 }),
+              menu: base => ({ ...base, zIndex: 9999 })
+            }}
           />
+
         </div>
 
         <button type="button" className="btn btn-outline-danger" onClick={verificarUnidad} style={{ height: 35 }}>
@@ -305,7 +333,7 @@ export default function Placas() {
             {placas.map(p => (
               <tr key={p.id_placa}>
                 <td>{p.id_placa}</td>
-                <td>{p.id_unidad || "N/A"}</td>
+                <td>{p.cve || "N/A"}</td>
                 <td>{p.placa}</td>
                 <td>{p.folio}</td>
                 <td>{p.fecha_expedicion ? new Date(p.fecha_expedicion).toLocaleDateString('es-MX') : "N/A"}</td>
@@ -326,6 +354,35 @@ export default function Placas() {
           </tbody>
         </table>
       </div>
+    <div className="card-wrapper">
+      {placas.map(p => (
+        <div key={p.id_placa} className="unidad-card">
+          <h3>Placa: {p.placa}</h3>
+          <p><b>ID:</b> {p.id_placa}</p>
+          <p><b>Unidad:</b> {p.cve || "N/A"}</p>
+          <p><b>Folio:</b> {p.folio}</p>
+          <p><b>Expedición:</b> {p.fecha_expedicion ? new Date(p.fecha_expedicion).toLocaleDateString('es-MX') : "N/A"}</p>
+          <p><b>Vigencia:</b> {p.fecha_vigencia ? new Date(p.fecha_vigencia).toLocaleDateString('es-MX') : "N/A"}</p>
+          <p><b>Monto Pago:</b> {p.monto_pago ? `$${p.monto_pago}` : "N/A"}</p>
+
+          <div className="file-buttons">
+            {p.url_placa_frontal && <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${API_URL}/${p.url_placa_frontal}`)}>Ver Placa Frontal</button>}
+            {p.url_placa_trasera && <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${API_URL}/${p.url_placa_trasera}`)}>Ver Placa Trasera</button>}
+            {p.url_comprobante_pago && <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${API_URL}/${p.url_comprobante_pago}`)}>Comprobante Pago</button>}
+            {p.url_tarjeta_circulacion && <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${API_URL}/${p.url_tarjeta_circulacion}`)}>Tarjeta Circulación</button>}
+          </div>
+
+          <div className="actions-container">
+            <button onClick={() => handleEdit(p)}>
+              <i className="fa-solid fa-pen-to-square icon-edit"></i>
+            </button>
+            <button onClick={() => handleEliminar(p.id_placa)}>
+              <i className="fa-solid fa-trash icon-delete"></i>
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
 
       {/* Modal Edición */}
       {edit && (

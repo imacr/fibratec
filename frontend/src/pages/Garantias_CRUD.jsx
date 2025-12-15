@@ -185,7 +185,7 @@ const Crudgarantias = ({ onClose, onCreate, garantia }) => {
 
   const unidadOptions = unidades.map(u => ({ 
     value: u.id_unidad, 
-    label: `ID: ${u.id_unidad} | ${u.vehiculo} - ${u.marca} ${u.modelo}` 
+    label: `CVE: ${u.cve} | ${u.version} - ${u.marca} ${u.modelo}` 
   }));
 
   return (

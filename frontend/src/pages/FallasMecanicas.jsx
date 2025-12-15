@@ -229,6 +229,46 @@ const FallasMecanicas = () => {
           </tbody>
         </table>
       </div>
+      <div className="card-wrapper">
+  {currentFallas.length === 0 ? (
+    <p className="mensaje-estado">No hay fallas registradas.</p>
+  ) : (
+    currentFallas.map(f => (
+      <div key={f.id_falla} className="unidad-card">
+        <h3>{f.unidad} ({f.marca})</h3>
+        <p><b>Pieza:</b> {f.pieza}</p>
+        <p><b>Tipo Servicio:</b> {f.tipo_servicio}</p>
+        <p><b>Lugar Reparación:</b> {f.lugar_reparacion}</p>
+        <p><b>Proveedor:</b> {f.proveedor}</p>
+        <p><b>Tipo Pago:</b> {f.tipo_pago}</p>
+        <p><b>Costo:</b> ${f.costo?.toLocaleString() || "-"}</p>
+        <p>
+          <b>Comprobante:</b>{" "}
+          {f.url_comprobante ? (
+            <button
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => setModalFile(`${BASE_URL}/${f.url_comprobante}`)}
+            >
+              Ver Comprobante
+            </button>
+          ) : "—"}
+        </p>
+        <p><b>Fecha Falla:</b> {f.fecha_falla ? new Date(f.fecha_falla).toLocaleDateString() : "N/A"}</p>
+        <div className="actions-container">
+          <button className="icon-details" onClick={() => setModalDetalle(f)}>
+            <i className="fa fa-eye"></i>
+          </button>
+          <button className="icon-edit" onClick={() => openModal(f)}>
+            <i className="fa fa-edit"></i>
+          </button>
+          <button className="icon-delete" onClick={() => handleDeleteFalla(f.id_falla)}>
+            <i className="fa fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
       {/* Paginación */}
       <div className="pagination">

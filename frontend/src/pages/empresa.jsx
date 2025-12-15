@@ -194,6 +194,28 @@ export default function Empresas() {
           </table>
         )}
       </div>
+ <div className="card-wrapper">
+  {empresas.length === 0 ? (
+    <p className="mensaje-estado">No hay empresas registradas</p>
+  ) : (
+    empresas.map(e => (
+      <div key={e.id_empresa} className="unidad-card">
+        <h3>{e.nombre_comercial}</h3>
+        <p><b>Razón Social:</b> {e.razon_social}</p>
+        <p><b>RFC:</b> {e.rfc}</p>
+        <p><b>Régimen Fiscal:</b> {e.regimen_fiscal}</p>
+        <p><b>Dirección:</b> {e.direccion}</p>
+        <p><b>Inicio Operaciones:</b> {e.inicio_operaciones}</p>
+        <p><b>Estatus:</b> {e.estatus}</p>
+        <p><b>Actividad Económica:</b> {e.actividad_economica}</p>
+        <div className="actions-container">
+          <button className="icon-edit" onClick={() => handleEdit(e)}>✎</button>
+          <button className="icon-delete" onClick={() => handleDelete(e.id_empresa)}>🗑</button>
+        </div>
+      </div>
+    ))
+  )}
+</div>
 
       {modalOpen && (
         <Modal onClose={() => setModalOpen(false)}>

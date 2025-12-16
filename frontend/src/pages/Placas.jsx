@@ -280,10 +280,10 @@ export default function Placas() {
             <div className="form-group"><label>Fecha Expedición</label><input type="date" name="fecha_expedicion" value={form.fecha_expedicion || ""} onChange={handleChange} /></div>
             <div className="form-group"><label>Fecha Vigencia</label><input type="date" name="fecha_vigencia" value={form.fecha_vigencia || ""} onChange={handleChange} /></div>
             <div className="form-group"><label>Monto Pago</label><input type="number" name="monto_pago" value={form.monto_pago || ""} onChange={handleChange} /></div>
-            <div className="form-group"><label>placa Frontal</label><input type="file" name="url_placa_frontal" onChange={handleFileChange} /></div>
-            <div className="form-group"><label>Trasera</label><input type="file" name="url_placa_trasera" onChange={handleFileChange} /></div>
-            <div className="form-group"><label>Comprobante del pago</label><input type="file" name="comprobante" onChange={handleFileChange} /></div>
-            <div className="form-group"><label>Tarjeta Circulación</label><input type="file" name="tarjeta_circulacion" onChange={handleFileChange} /></div>
+            <div className="form-group"><label>placa Frontal</label><input type="file" accept="image/*,.pdf" name="url_placa_frontal" onChange={handleFileChange} /></div>
+            <div className="form-group"><label>Trasera</label><input type="file" accept="image/*,.pdf" name="url_placa_trasera" onChange={handleFileChange} /></div>
+            <div className="form-group"><label>Comprobante del pago</label><input type="file" accept="image/*,.pdf" name="comprobante" onChange={handleFileChange} /></div>
+            <div className="form-group"><label>Tarjeta Circulación</label><input type="file" accept="image/*,.pdf" name="tarjeta_circulacion" onChange={handleFileChange} /></div>
           </div>
           <button className="btn-placa-registrar" onClick={handleRegistro}>Registrar</button>
         </div>

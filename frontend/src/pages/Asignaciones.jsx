@@ -47,8 +47,8 @@ export default function AsignacionesActivas() {
         resChoferLibre
       ] = await Promise.all([
         fetch(`${API_URL}/asignaciones`),
-        fetch(`${API_URL}/choferes`),
-        fetch(`${API_URL}/api/usuarios/admins`),
+        fetch(`${API_URL}/choferes/uno`),
+        fetch(`${API_URL}/usuarios/admins`),
         fetch(`${API_URL}/unidades/libres_usuario`),
         fetch(`${API_URL}/unidades/libres_chofer`)
       ]);

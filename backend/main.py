@@ -8,6 +8,7 @@ import bcrypt
 from flask_bcrypt import check_password_hash
 from sqlalchemy import cast, Integer
 from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
 
 
 from datetime import datetime, timedelta
@@ -471,23 +472,28 @@ class FallaMecanica(db.Model):
     observaciones = db.Column(db.Text)
     url_comprobante = db.Column(db.String(500))
 
+    # NUEVO CAMPO: referencia a la solicitud
+    id_solicitud = db.Column(db.Integer, db.ForeignKey("SolicitudesFallas.id_solicitud"), nullable=False)
+
     # Relaciones
     marca_rel = db.relationship("MarcasPiezas", backref="fallas")
-    pieza_rel = db.relationship("Piezas", backref="fallas")  # <-- agregada
-    lugar_rel = db.relationship("LugarReparacion", backref="fallas")  # opcional
+    pieza_rel = db.relationship("Piezas", backref="fallas")
+    lugar_rel = db.relationship("LugarReparacion", backref="fallas")
+    solicitud_rel = db.relationship("SolicitudFalla", backref="fallas")  # relación hacia solicitud
 
     def to_dict(self):
         return {
             "id_falla": self.id_falla,
             "id_unidad": self.id_unidad,
-            "pieza": self.pieza_rel.nombre_pieza if self.pieza_rel else None,  # usa la relación
+            "pieza": self.pieza_rel.nombre_pieza if self.pieza_rel else None,
             "marca": self.marca_rel.nombre_marca if self.marca_rel else None,
             "lugar_reparacion": self.lugar_rel.nombre_lugar if self.lugar_rel else None,
             "tipo_servicio": self.tipo_servicio,
             "descripcion": self.descripcion,
             "proveedor": self.proveedor,
             "costo": float(self.costo) if self.costo else None,
-            "fecha_falla": self.fecha_falla.strftime("%Y-%m-%d") if self.fecha_falla else None
+            "fecha_falla": self.fecha_falla.strftime("%Y-%m-%d") if self.fecha_falla else None,
+            "id_solicitud": self.id_solicitud
         }
 
 
@@ -717,7 +723,7 @@ def get_db_connection():
 
 # --- 3. RUTAS DE LA API ---
 
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 @limiter.limit("200 per minute")
 def login():
     data = request.get_json()
@@ -1016,35 +1022,35 @@ def actualizar_usuario(id_usuario):
             "error": "Error al actualizar el usuario"
         }), 500
 
+
 @app.route('/api/choferes', methods=['GET'])
 def obtener_choferes():
     try:
-        # solo choferes que no tengan un usuario asignado
+        # choferes sin usuario asignado
         choferes = Choferes.query.filter(~Choferes.usuarios.any()).all()
-        resultado = []
-        for c in choferes:
-            resultado.append({
-                'id_chofer': c.id_chofer,
-                'nombre': c.nombre,
-                'curp': c.curp,
-                'calle': c.calle,
-                'colonia_localidad': c.colonia_localidad,
-                'codpos': c.codpos,
-                'municipio': c.municipio,
-                'licencia_folio': c.licencia_folio,
-                'licencia_tipo': c.licencia_tipo,
-                'licencia_vigencia': c.licencia_vigencia.isoformat() if c.licencia_vigencia else None
-            })
+        resultado = [{
+            'id_chofer': c.id_chofer,
+            'nombre': c.nombre,
+            'curp': c.curp,
+            'calle': c.calle,
+            'colonia_localidad': c.colonia_localidad,
+            'codpos': c.codpos,
+            'municipio': c.municipio,
+            'licencia_folio': c.licencia_folio,
+            'licencia_tipo': c.licencia_tipo,
+            'licencia_vigencia': c.licencia_vigencia.isoformat() if c.licencia_vigencia else None
+        } for c in choferes]
         return jsonify(resultado), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 
+
 #` =======================
 # RECUPERACION DE CONTRASEÑA
 # =======================`
-@app.route('/request-reset', methods=['POST'])
+@app.route('/api/request-reset', methods=['POST'])
 def request_password_reset():
     """Maneja la solicitud de recuperación de contraseña."""
     data = request.get_json()
@@ -1120,7 +1126,7 @@ def request_password_reset():
 
 
 
-@app.route('/reset-password/<string:token>', methods=['POST'])
+@app.route('/api/reset-password/<string:token>', methods=['POST'])
 def reset_password(token):
     """Maneja el cambio de contraseña a través del token."""
     data = request.get_json()
@@ -1278,7 +1284,7 @@ def get_unidades_data():
 
 
 
-@app.route('/combustible', methods=['GET'])
+@app.route('/api/combustible', methods=['GET'])
 def get_combustible():
     combustible = Combustible.query.all()
     return jsonify([{
@@ -1670,7 +1676,7 @@ def enviar_correo_async(app, msg):
     with app.app_context():
         mail.send(msg)
 
-@app.route('/asignaciones', methods=['POST'])
+@app.route('/api/asignaciones', methods=['POST'])
 def crear_asignacion():
     data = request.get_json()
     id_usuario = data.get('id_usuario')  # si viene directamente un usuario
@@ -1739,7 +1745,7 @@ def crear_asignacion():
     return jsonify({"message": "Asignación creada", "id_asignacion": nueva.id_asignacion}), 201
 
 
-@app.route('/asignaciones/<int:id_asignacion>/finalizar', methods=['PUT'])
+@app.route('/api/asignaciones/<int:id_asignacion>/finalizar', methods=['PUT'])
 def finalizar_asignacion(id_asignacion):
     usuario = request.json.get('usuario', 'sistema')
     asignacion = Asignaciones.query.get(id_asignacion)
@@ -1767,7 +1773,7 @@ def finalizar_asignacion(id_asignacion):
 
 
 
-@app.route('/historial_asignaciones', methods=['GET'])
+@app.route('/api/historial_asignaciones', methods=['GET'])
 def historial():
     historial = HistorialAsignaciones.query.order_by(HistorialAsignaciones.fecha_cambio.desc()).all()
     salida = []
@@ -1800,7 +1806,7 @@ def historial():
     return jsonify(salida)
 
 
-@app.route('/asignaciones', methods=['GET'])
+@app.route('/api/asignaciones', methods=['GET'])
 def listar_asignaciones():
     asignaciones = Asignaciones.query.filter_by(fecha_fin=None).all()  # solo activas
 
@@ -1851,7 +1857,7 @@ def listar_asignaciones():
 
 
 
-@app.route('/choferes', methods=['GET'])
+@app.route('/api/choferes/uno', methods=['GET'])
 def listar_choferes():
     choferes = Choferes.query.all()
     return jsonify([
@@ -1862,7 +1868,7 @@ def listar_choferes():
         } for c in choferes
     ])
 
-@app.route('/unidades', methods=['GET'])
+@app.route('/api/unidades', methods=['GET'])
 def listar_unidad():
     unidades = Unidades.query.all()
     salida = []
@@ -1879,7 +1885,7 @@ def listar_unidad():
         })
     return jsonify(salida)
 
-@app.route('/unidades/libres_usuario', methods=['GET'])
+@app.route('/api/unidades/libres_usuario', methods=['GET'])
 def unidades_libres_usuario():
     asignadas = [a.id_unidad for a in Asignaciones.query.filter_by(fecha_fin=None).all()]
 
@@ -1902,7 +1908,7 @@ def unidades_libres_usuario():
 
     return jsonify(salida)
 
-@app.route('/unidades/libres_chofer', methods=['GET'])
+@app.route('/api/unidades/libres_chofer', methods=['GET'])
 def unidades_libres_chofer():
     # Obtener las unidades actualmente asignadas
     asignadas = [a.id_unidad for a in Asignaciones.query.filter_by(fecha_fin=None).all()]
@@ -1968,7 +1974,7 @@ def obtener_usuarios_admins():
 
 
 
-@app.route('/unidades/chofer/<int:id_usuario>', methods=['GET'])
+@app.route('/api/unidades/chofer/<int:id_usuario>', methods=['GET'])
 def obtener_unidad_por_chofer(id_usuario):
     try:
         # Obtener usuario
@@ -2016,7 +2022,7 @@ def obtener_unidad_por_chofer(id_usuario):
         print("Error en obtener_unidad_por_chofer:", e)
         return jsonify({'error': 'Error interno del servidor'}), 500
 
-@app.route('/chofer/unidad/<int:id_usuario>', methods=['GET'])
+@app.route('/api/chofer/unidad/<int:id_usuario>', methods=['GET'])
 def obtener_datos_chofer_unidad(id_usuario):
     try:
         print(f"=== INICIO obtener_datos_chofer_unidad para id_usuario={id_usuario} ===")
@@ -2431,7 +2437,7 @@ def actualizar_garantia(id_garantia):
         cursor.close()
         conn.close()
 
-@app.route('/garantias/verificar/<int:id_unidad>', methods=['GET'])
+@app.route('/api/garantias/verificar/<int:id_unidad>', methods=['GET'])
 def verificar_garantia(id_unidad):
     garantia = Garantias.query.filter_by(id_unidad=id_unidad).first()
     hoy = date.today()
@@ -2517,7 +2523,7 @@ def eliminar_garantia(id_garantia):
 
 
 # Servir archivos (opcional para ver en navegador)
-@app.route('/uploads/garantias/<filename>')
+@app.route('/api/uploads/garantias/<filename>')
 def uploaded_files(filename):
     print(f"Sirviendo archivo: {filename}")
     return send_from_directory('uploads/garantias', filename)
@@ -3491,9 +3497,8 @@ def enviar_alertas_verificacion():
 # ===============================================================================================
 
 
-@app.route('/solicitudes/chofer/<int:id_usuario>', methods=['GET'])
+@app.route('/api/solicitudes/chofer/<int:id_usuario>', methods=['GET'])
 def solicitudes_chofer(id_usuario):
-
     # Buscar chofer vinculado (si existe)
     chofer = Choferes.query.filter_by(id_usuario=id_usuario).first()
 
@@ -3506,11 +3511,8 @@ def solicitudes_chofer(id_usuario):
 
     resultado = []
     for s in solicitudes:
-        falla_existente = FallaMecanica.query.filter_by(
-            id_unidad=s.id_unidad,
-            id_pieza=s.id_pieza,
-            tipo_servicio=s.tipo_servicio
-        ).first()
+        # Verificar si hay una falla asociada directamente a la solicitud
+        falla_existente = FallaMecanica.query.filter_by(id_solicitud=s.id_solicitud).first()
 
         unidad = Unidades.query.get(s.id_unidad)
         pieza = Piezas.query.get(s.id_pieza)
@@ -3533,9 +3535,7 @@ def solicitudes_chofer(id_usuario):
     return jsonify(resultado), 200
 
 
-
-
-@app.route('/solicitudes', methods=['POST'])
+@app.route('/api/solicitudes', methods=['POST'])
 def crear_solicitud():
     data = request.json
     print("\n===== Crear Solicitud =====")
@@ -3585,7 +3585,7 @@ def crear_solicitud():
 # Listar solicitudes pendientes (ADMIN)
 
 # -------------------------------
-@app.route('/solicitudes', methods=['GET'])
+@app.route('/api/solicitudes', methods=['GET'])
 def listar_todas_solicitudes():
     solicitudes = SolicitudFalla.query.order_by(SolicitudFalla.fecha_solicitud.desc()).all()
     resultado = []
@@ -3628,7 +3628,7 @@ def listar_todas_solicitudes():
 # -------------------------------
 # Aprobar o rechazar solicitud (ADMIN)
 # -------------------------------
-@app.route('/solicitudes/<int:id_solicitud>/aprobar', methods=['POST'])
+@app.route('/api/solicitudes/<int:id_solicitud>/aprobar', methods=['POST'])
 def aprobar_solicitud(id_solicitud):
     data = request.json
     solicitud = SolicitudFalla.query.get_or_404(id_solicitud)
@@ -3652,7 +3652,7 @@ app.config['UPLOAD_FOLDER_FALLA'] = UPLOAD_FOLDER_FALLA
 def allowed_file_falla(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS_FALLA
 
-@app.route('/fallas', methods=['POST'])
+@app.route('/api/fallas', methods=['POST'])
 def crear_falla():
     try:
         data = request.form
@@ -3685,6 +3685,7 @@ def crear_falla():
         aplica_poliza = aplica_poliza_str.lower() in ['true', '1', 'on']
 
         falla = FallaMecanica(
+            id_solicitud=id_solicitud,  # <--- agregar esto
             id_unidad=solicitud.id_unidad,
             id_pieza=solicitud.id_pieza,
             fecha_falla=solicitud.fecha_solicitud,
@@ -3718,7 +3719,7 @@ def crear_falla():
         }), 500
 
 
-@app.route('/falla_admin', methods=['POST'])
+@app.route('/api/falla_admin', methods=['POST'])
 def registrar_falla_admin():
     try:
         data = request.form
@@ -3793,7 +3794,7 @@ def registrar_falla_admin():
         }), 400
 
 
-@app.route('/fallas/<int:id_falla>', methods=['PUT'])
+@app.route('/api/fallas/<int:id_falla>', methods=['PUT'])
 def actualizar_falla(id_falla):
     falla = FallaMecanica.query.get_or_404(id_falla)
     data = request.form
@@ -3865,7 +3866,7 @@ def actualizar_falla(id_falla):
 # -------------------------------
 # Obtener detalle de una falla
 # -------------------------------
-@app.route('/fallas/<int:id_falla>', methods=['GET'])
+@app.route('/api/fallas/<int:id_falla>', methods=['GET'])
 def detalle_falla(id_falla):
     falla = FallaMecanica.query.get_or_404(id_falla)
     return jsonify({
@@ -3886,7 +3887,7 @@ def detalle_falla(id_falla):
     })
 
 # Listar unidades
-@app.route('/unidades', methods=['GET'])
+@app.route('/api/unidades', methods=['GET'])
 def listar_unidades():
     unidades = Unidades.query.all()
     return jsonify([
@@ -3895,7 +3896,7 @@ def listar_unidades():
     ])
 
 # Obtener unidad por ID
-@app.route('/unidades/<int:id_unidad>', methods=['GET'])
+@app.route('/api/unidades/<int:id_unidad>', methods=['GET'])
 def obtener_unidad(id_unidad):
     unidad = Unidades.query.get(id_unidad)
     if not unidad:
@@ -3908,7 +3909,7 @@ def obtener_unidad(id_unidad):
     })
 
 # Listar piezas
-@app.route('/piezas', methods=['GET'])
+@app.route('/api/piezas', methods=['GET'])
 def listar_piezas():
     piezas = Piezas.query.all()
     return jsonify([
@@ -3916,7 +3917,7 @@ def listar_piezas():
     ])
 
 # Listar marcas
-@app.route('/marcas', methods=['GET'])
+@app.route('/api/marcas', methods=['GET'])
 def listar_marcas():
     marcas = MarcasPiezas.query.all()
     return jsonify([
@@ -3924,7 +3925,7 @@ def listar_marcas():
     ])
 
 # Listar lugares de reparación
-@app.route('/lugares', methods=['GET'])
+@app.route('/api/lugares', methods=['GET'])
 def listar_lugares():
     lugares = LugarReparacion.query.all()
     return jsonify([
@@ -3934,7 +3935,7 @@ def listar_lugares():
 # ----------------- CRUD LUGARES DE REPARACIÓN -----------------
 
 
-@app.route("/lugares/<int:id>", methods=["GET"])
+@app.route("/api/lugares/<int:id>", methods=["GET"])
 def obtener_lugar(id):
     lugar = LugarReparacion.query.get_or_404(id)
     return jsonify({
@@ -3946,7 +3947,7 @@ def obtener_lugar(id):
         "observaciones": lugar.observaciones
     })
 
-@app.route("/lugares", methods=["POST"])
+@app.route("/api/lugares", methods=["POST"])
 def crear_lugar():
     data = request.json
     lugar = LugarReparacion(**data)
@@ -3954,7 +3955,7 @@ def crear_lugar():
     db.session.commit()
     return jsonify({"message": "Lugar creado", "id": lugar.id_lugar}), 201
 
-@app.route("/lugares/<int:id>", methods=["PUT"])
+@app.route("/api/lugares/<int:id>", methods=["PUT"])
 def actualizar_lugar(id):
     lugar = LugarReparacion.query.get_or_404(id)
     for key, value in request.json.items():
@@ -3962,7 +3963,7 @@ def actualizar_lugar(id):
     db.session.commit()
     return jsonify({"message": "Lugar actualizado"})
 
-@app.route("/lugares/<int:id>", methods=["DELETE"])
+@app.route("/api/lugares/<int:id>", methods=["DELETE"])
 def eliminar_lugar(id):
     lugar = LugarReparacion.query.get_or_404(id)
     db.session.delete(lugar)
@@ -3971,12 +3972,12 @@ def eliminar_lugar(id):
 
 # ----------------- CRUD PIEZAS -----------------
 
-@app.route("/piezas/<int:id>", methods=["GET"])
+@app.route("/api/piezas/<int:id>", methods=["GET"])
 def obtener_pieza(id):
     pieza = Piezas.query.get_or_404(id)
     return jsonify({"id_pieza": pieza.id_pieza, "nombre_pieza": pieza.nombre_pieza, "descripcion": pieza.descripcion})
 
-@app.route("/piezas", methods=["POST"])
+@app.route("/api/piezas", methods=["POST"])
 def crear_pieza():
     data = request.json or {}
 
@@ -4000,7 +4001,7 @@ def crear_pieza():
         return jsonify({"error": "Error al crear la pieza", "detalle": str(e)}), 500
 
 
-@app.route("/piezas/<int:id>", methods=["PUT"])
+@app.route("/api/piezas/<int:id>", methods=["PUT"])
 def actualizar_pieza(id):
     pieza = Piezas.query.get_or_404(id)
     for key, value in request.json.items():
@@ -4008,7 +4009,7 @@ def actualizar_pieza(id):
     db.session.commit()
     return jsonify({"message": "Pieza actualizada"})
 
-@app.route("/piezas/<int:id>", methods=["DELETE"])
+@app.route("/api/piezas/<int:id>", methods=["DELETE"])
 def eliminar_pieza(id):
     pieza = Piezas.query.get_or_404(id)
     db.session.delete(pieza)
@@ -4018,7 +4019,7 @@ def eliminar_pieza(id):
 # ----------------- CRUD MARCAS DE PIEZAS -----------------
 
 
-@app.route("/marcas/<int:id>", methods=["GET"])
+@app.route("/api/marcas/<int:id>", methods=["GET"])
 def obtener_marca(id):
     marca = MarcasPiezas.query.get_or_404(id)
     return jsonify({
@@ -4028,7 +4029,7 @@ def obtener_marca(id):
         "observaciones": marca.observaciones
     })
 
-@app.route("/marcas", methods=["POST"])
+@app.route("/api/marcas", methods=["POST"])
 def crear_marca():
     data = request.json
     marca = MarcasPiezas(**data)
@@ -4036,7 +4037,7 @@ def crear_marca():
     db.session.commit()
     return jsonify({"message": "Marca creada", "id": marca.id_marca}), 201
 
-@app.route("/marcas/<int:id>", methods=["PUT"])
+@app.route("/api/marcas/<int:id>", methods=["PUT"])
 def actualizar_marca(id):
     marca = MarcasPiezas.query.get_or_404(id)
     for key, value in request.json.items():
@@ -4044,7 +4045,7 @@ def actualizar_marca(id):
     db.session.commit()
     return jsonify({"message": "Marca actualizada"})
 
-@app.route("/marcas/<int:id>", methods=["DELETE"])
+@app.route("/api/marcas/<int:id>", methods=["DELETE"])
 def eliminar_marca(id):
     marca = MarcasPiezas.query.get_or_404(id)
     db.session.delete(marca)
@@ -4057,7 +4058,7 @@ def eliminar_marca(id):
 # -------------------------------
 # Listar fallas mecánicas (con nombres descriptivos)
 # -------------------------------
-@app.route('/fallas', methods=['GET'])
+@app.route('/api/fallas', methods=['GET'])
 def listar_fallas():
     fallas = FallaMecanica.query.all()
     resultado = []
@@ -4100,7 +4101,7 @@ def listar_fallas():
 
 
 
-@app.route('/fallas/<int:id_falla>', methods=['DELETE'])
+@app.route('/api/fallas/<int:id_falla>', methods=['DELETE'])
 def eliminar_falla(id_falla):
     conn = db.engine.raw_connection()
     cursor = conn.cursor()
@@ -4137,7 +4138,7 @@ def eliminar_falla(id_falla):
 # -------------------------------
 # Crear mensaje para una solicitud
 # -------------------------------
-@app.route('/solicitudes_mensajes', methods=['POST'])
+@app.route('/api/solicitudes_mensajes', methods=['POST'])
 def crear_mensaje_solicitud():
     """
     Espera JSON: { id_solicitud, id_usuario, mensaje }
@@ -4174,7 +4175,7 @@ def crear_mensaje_solicitud():
 # -------------------------------
 # Rechazar una solicitud (ADMIN)
 # -------------------------------
-@app.route('/solicitudes/<int:id_solicitud>/rechazar', methods=['POST'])
+@app.route('/api/solicitudes/<int:id_solicitud>/rechazar', methods=['POST'])
 def rechazar_solicitud(id_solicitud):
     """
     Actualiza estado a 'rechazada' y guarda la razón de rechazo
@@ -4194,7 +4195,7 @@ def rechazar_solicitud(id_solicitud):
     return jsonify({"msg": "Solicitud rechazada y mensaje enviado al chofer"})  
 
 
-@app.route("/mis_mensajes/<int:id_usuario>", methods=["GET"])
+@app.route("/api/mis_mensajes/<int:id_usuario>", methods=["GET"])
 def mis_mensajes(id_usuario):
 
     # Obtener el chofer asociado al usuario
@@ -4242,7 +4243,7 @@ def mis_mensajes(id_usuario):
 #/fallas_mensajes/usuario/
 
 
-@app.route("/uploads/mensajes/<filename>")
+@app.route("/api/uploads/mensajes/<filename>")
 def subir_mensajes(filename):
     return send_from_directory("uploads/mensajes", filename)
 
@@ -4250,7 +4251,7 @@ def subir_mensajes(filename):
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route("/solicitudes_mensajes/responder", methods=["POST"])
+@app.route("/api/solicitudes_mensajes/responder", methods=["POST"])
 def responder_solicitud():
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads/mensajes")
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "mp4", "webm", "ogg", "pdf"}
@@ -4306,7 +4307,7 @@ def responder_solicitud():
     print("Mensaje creado con ID:", nuevo_mensaje.id_mensaje)
     return jsonify({"msg": "Respuesta enviada correctamente"})
 
-@app.route("/solicitudes/<int:id_solicitud>/mensajes_admin", methods=["GET"])
+@app.route("/api/solicitudes/<int:id_solicitud>/mensajes_admin", methods=["GET"])
 def obtener_mensajes(id_solicitud):
     try:
         # Obtener la solicitud (esto ya valida existencia)
@@ -4341,7 +4342,7 @@ def obtener_mensajes(id_solicitud):
 
 ####################################
 
-@app.route('/uploads/<path:filename>')
+@app.route('/api/uploads/<path:filename>')
 def serve_uploads(filename):
     # Carpeta 'uploads' absoluta
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')  # Ajusta si tu carpeta está en otro lugar
@@ -4353,7 +4354,7 @@ from flask import jsonify
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 
-@app.route('/fallas/chofer/<int:id_usuario>', methods=['GET'])
+@app.route('/api/fallas/chofer/<int:id_usuario>', methods=['GET'])
 def fallas_por_chofer(id_usuario):
     usuario = db.session.get(Usuarios, id_usuario)
     print("Usuario obtenido:", usuario)
@@ -4414,7 +4415,7 @@ def fallas_por_chofer(id_usuario):
 #Placas
 #========================================================================================================
 
-@app.route('/placas', methods=['GET'])
+@app.route('/api/placas', methods=['GET'])
 def get_placas():
     try:
         search = request.args.get('search', "", type=str)
@@ -4467,7 +4468,7 @@ def get_placas():
 # ---------------------------
 # Endpoint para probar envío de correo manual
 # ---------------------------
-@app.route("/test-email", methods=["GET"])
+@app.route("/api/test-email", methods=["GET"])
 def test_email():
     # Cambia este correo por el que quieras usar para la prueba
     correo_destino = "imanolcruz588@gmail.com"
@@ -4483,7 +4484,7 @@ def test_email():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-@app.route("/reseteo_manual", methods=["POST"])
+@app.route("/api/reseteo_manual", methods=["POST"])
 def reseteo_manual():
     try:
         reseteo_y_alertas()
@@ -4615,7 +4616,7 @@ def guardar_archivo_unico(file, carpeta='placas'):
 
 
 
-@app.route("/placas/registrar", methods=["POST"])
+@app.route("/api/placas/registrar", methods=["POST"])
 def registrar_o_actualizar_placa():
     # ---------------- Directorios ----------------
     UPLOAD_DIR = 'placas/'
@@ -4638,7 +4639,8 @@ def registrar_o_actualizar_placa():
     fecha_vigencia = data.get("fecha_vigencia")
     monto_pago = float(data.get("monto_pago", 0))
     print(f"Valores extraídos: id_unidad={id_unidad}, placa={nueva_placa}, folio={folio}, fecha_expedicion={fecha_expedicion}, fecha_vigencia={fecha_vigencia}, monto_pago={monto_pago}")
-
+    # ---------------- Aquí sigue toda tu lógica principal de actualización/registro ----------------
+    placa_activa = Placas.query.filter_by(id_unidad=id_unidad).first()
     if not id_unidad or not nueva_placa or not fecha_vigencia:
         return jsonify({"error": "Unidad, placa y fecha de vigencia son obligatorios"}), 400
 
@@ -4679,8 +4681,7 @@ def registrar_o_actualizar_placa():
         archivo.save(ruta)
         return ruta.replace("\\", "/")
 
-    # ---------------- Aquí sigue toda tu lógica principal de actualización/registro ----------------
-    placa_activa = Placas.query.filter_by(id_unidad=id_unidad).first()
+
 
     if placa_activa:
         dias_restantes = (placa_activa.fecha_vigencia - hoy).days if placa_activa.fecha_vigencia else 0
@@ -4787,7 +4788,7 @@ def registrar_o_actualizar_placa():
 
 
 
-@app.route("/placas/<int:id_placa>", methods=["DELETE"])
+@app.route("/api/placas/<int:id_placa>", methods=["DELETE"])
 def eliminar_placa(id_placa):
     UPLOAD_DIR = 'uploads/placas/'
     placa = Placas.query.get(id_placa)
@@ -4825,7 +4826,7 @@ def eliminar_placa(id_placa):
 # ---------------------------
 # Endpoint para consultar alertas
 # ---------------------------
-@app.route("/alertas_placas", methods=["GET"])
+@app.route("/api/alertas_placas", methods=["GET"])
 def alertas_placas_endpoint():
     placas_alerta = Placas.query.filter_by(requiere_renovacion=True).all()
     return jsonify([{
@@ -4849,7 +4850,7 @@ ALLOWED_EXTENSIONS = {"pdf"}
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route("/placas/<int:id_placa>", methods=["PUT"])
+@app.route("/api/placas/<int:id_placa>", methods=["PUT"])
 def update_placa(id_placa):
     import pprint
     pp = pprint.PrettyPrinter(indent=2)
@@ -4965,7 +4966,7 @@ def update_placa(id_placa):
 # ---------------------------
 # Endpoint para obtener historial de placas 
 
-@app.route("/placas/historial", methods=["GET"])
+@app.route("/api/placas/historial", methods=["GET"])
 def get_historial_placas():
     historial = HistorialPlaca.query.order_by(HistorialPlaca.fecha_vigencia.desc()).all()
     historial_list = []
@@ -5005,12 +5006,12 @@ def get_historial_placas():
 
 
 # Ruta para servir archivos de placas
-@app.route('/uploads/placas/<filename>')
+@app.route('/api/uploads/placas/<filename>')
 def uploaded_file(filename):
     print(f"Sirviendo archivo: {filename}")
     return send_from_directory('uploads/placas', filename)
 
-@app.route("/uploads/historial_placas/<filename>")
+@app.route("/api/uploads/historial_placas/<filename>")
 def historial_file(filename):
     return send_from_directory("uploads/historial_placas", filename)
 
@@ -5025,7 +5026,7 @@ def historial_file(filename):
 
 
 
-@app.route("/refrendo_tenencia/check/<int:id_unidad>", methods=["GET"])
+@app.route("/api/refrendo_tenencia/check/<int:id_unidad>", methods=["GET"])
 def check_unidad(id_unidad):
     hoy = date.today()
     year = hoy.year
@@ -5096,7 +5097,7 @@ def move_file_to_historial(url):
     return os.path.join("uploads", "historial_refrendo_tenencia", nombre).replace("\\", "/")
 
 
-@app.route('/refrendo_tenencia', methods=['POST'])
+@app.route('/api/refrendo_tenencia', methods=['POST'])
 def registrar_pago():
     data = request.form
     try:
@@ -5219,7 +5220,7 @@ def registrar_pago():
     }), 200
 
 
-@app.route('/refrendo_tenencia', methods=['GET'])
+@app.route('/api/refrendo_tenencia', methods=['GET'])
 def listar_pagos_refrendo_tenencia():
     try:
         # Obtener filtros desde query params
@@ -5271,7 +5272,7 @@ def listar_pagos_refrendo_tenencia():
         print("ERROR listar_pagos_refrendo_tenencia:", e)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/refrendo_tenencia/<int:id_pago>', methods=['PUT'])
+@app.route('/api/refrendo_tenencia/<int:id_pago>', methods=['PUT'])
 def actualizar_pago(id_pago):
     data = request.form
 
@@ -5345,7 +5346,7 @@ def actualizar_pago(id_pago):
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/historiales', methods=['GET'])
+@app.route('/api/historiales', methods=['GET'])
 def get_historiales():
     try:
         historiales = (
@@ -5514,7 +5515,7 @@ def enviar_alertas_refrendo_tenencia():
 # --------------------------------------------
 # Endpoint manual para pruebas
 # --------------------------------------------
-@app.route('/refrendo_tenencia/test_alertas', methods=['GET'])
+@app.route('/api/refrendo_tenencia/test_alertas', methods=['GET'])
 def test_alertas():
     alertas = enviar_alertas_refrendo_tenencia()
     return jsonify({"alertas": alertas, "total": len(alertas)}), 200
@@ -5536,7 +5537,7 @@ def obtener_frecuencia_por_marca(marca, id_tipo):
 # ---------------------
 # RUTAS: Tipos de mantenimiento
 # ---------------------
-@app.route('/tipos_mantenimiento', methods=['GET'])
+@app.route('/api/tipos_mantenimiento', methods=['GET'])
 def get_tipos():
     tipos = TiposMantenimiento.query.order_by(TiposMantenimiento.id_tipo_mantenimiento).all()
     return jsonify([{
@@ -5545,7 +5546,7 @@ def get_tipos():
         "descripcion": t.descripcion
     } for t in tipos])
 
-@app.route('/tipos_mantenimiento', methods=['POST'])
+@app.route('/api/tipos_mantenimiento', methods=['POST'])
 def post_tipo():
     data = request.get_json()
     nombre = data.get('nombre_tipo')
@@ -5560,7 +5561,7 @@ def post_tipo():
 # ------------------------------------------------------------
 # RUTAS: Frecuencias por marca
 # ------------------------------------------------------------
-@app.route('/frecuencias_pormarca', methods=['GET'])
+@app.route('/api/frecuencias_pormarca', methods=['GET'])
 def get_frecuencias():
     filas = FrecuenciasPorMarca.query.all()
     return jsonify([{
@@ -5572,7 +5573,7 @@ def get_frecuencias():
     } for f in filas])
 
 
-@app.route('/frecuencias_pormarca', methods=['POST'])
+@app.route('/api/frecuencias_pormarca', methods=['POST'])
 def post_frecuencia():
     data = request.get_json()
     if not all(k in data for k in ("marca","id_tipo_mantenimiento","frecuencia_tiempo","frecuencia_kilometraje")):
@@ -5590,7 +5591,7 @@ def post_frecuencia():
 # ---------------------
 # RUTA: programar mantenimientos iniciales para una unidad (al crear unidad)
 # ---------------------
-@app.route('/programar_mantenimientos/<int:id_unidad>', methods=['POST'])
+@app.route('/api/programar_mantenimientos/<int:id_unidad>', methods=['POST'])
 def programar_por_marca(id_unidad):
     unidad = Unidades.query.get(id_unidad)
     if not unidad:
@@ -5709,7 +5710,7 @@ def enviar_alertas_mantenimientos():
 # ---------------------
 # RUTAS: Listar programados
 # ---------------------
-@app.route('/mantenimientos_programados', methods=['GET'])
+@app.route('/api/mantenimientos_programados', methods=['GET'])
 def listar_programados():
     # Subconsulta para obtener la placa más reciente por unidad
     sub_placa = db.session.query(
@@ -5772,7 +5773,7 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "pdf"}
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/mantenimientos', methods=['POST'])
+@app.route('/api/mantenimientos', methods=['POST'])
 def registrar_mantenimiento():
     # Crear carpeta de uploads si no existe
     if not os.path.exists(UPLOAD_FOLDER):
@@ -5880,7 +5881,7 @@ def registrar_mantenimiento():
 # ---------------------
 # RUTA: historial de mantenimientos
 # ---------------------
-@app.route('/mantenimientos', methods=['GET'])
+@app.route('/api/mantenimientos', methods=['GET'])
 def listar_mantenimientos():
     mantenimientos = Mantenimientos.query.order_by(
         Mantenimientos.fecha_realizacion.desc()
@@ -5968,21 +5969,11 @@ def get_costos_mantenimiento_por_mes():
 @app.route("/api/sucursales", methods=["GET"])
 def get_sucursales():
     try:
-        # Extraemos sucursales distintas de la tabla Unidades
-        sucursales = db.session.query(Unidades.sucursal).distinct().all()
-        print("Sucursales raw:", sucursales)
-
-        # Limpiamos valores vacíos o None
-        lista_sucursales = [s[0].strip() for s in sucursales if s[0] and s[0].strip() != ""]
-        print("Sucursales limpias:", lista_sucursales)
-
-        # Ordenamos alfabéticamente
-        lista_sucursales.sort()
-
-        # Valor por defecto si no hay sucursales
+        sucursales = db.session.query(Sucursal.id_sede, Sucursal.name).join(Unidades).distinct().all()
+        lista_sucursales = [{"id_sucursal": s[0], "nombre": s[1].strip()} for s in sucursales if s[1] and s[1].strip() != ""]
+        lista_sucursales.sort(key=lambda x: x["nombre"])
         if not lista_sucursales:
-            lista_sucursales = ["Sin sucursales"]
-
+            lista_sucursales = [{"id_sucursal": None, "nombre": "Sin sucursales"}]
         return jsonify(lista_sucursales)
     except Exception as e:
         print("Error en /api/sucursales:", e)
@@ -6090,7 +6081,7 @@ def get_verificaciones():
 #======================================================
 
 # --------- Obtener todas las empresas ---------
-@app.route('/empresas', methods=['GET'])
+@app.route('/api/empresas', methods=['GET'])
 def get_empresas():
     empresas = Empresa.query.all()
     resultado = []
@@ -6109,7 +6100,7 @@ def get_empresas():
     return jsonify(resultado)
 
 # --------- Insertar empresa ---------
-@app.route('/empresas', methods=['POST'])
+@app.route('/api/empresas', methods=['POST'])
 def crear_empresa():
     data = request.get_json()
     nueva_empresa = Empresa(
@@ -6127,7 +6118,7 @@ def crear_empresa():
     return jsonify({'message': 'Empresa creada', 'id_empresa': nueva_empresa.id_empresa})
 
 # --------- Actualizar empresa ---------
-@app.route('/empresas/<int:id_empresa>', methods=['PUT'])
+@app.route('/api/empresas/<int:id_empresa>', methods=['PUT'])
 def actualizar_empresa(id_empresa):
     data = request.get_json()
     empresa = Empresa.query.get(id_empresa)
@@ -6145,7 +6136,7 @@ def actualizar_empresa(id_empresa):
     return jsonify({'message': 'Empresa actualizada'})
 
 # --------- Eliminar empresa ---------
-@app.route('/empresas/<int:id_empresa>', methods=['DELETE'])
+@app.route('/api/empresas/<int:id_empresa>', methods=['DELETE'])
 def eliminar_empresa(id_empresa):
     empresa = Empresa.query.get(id_empresa)
     if not empresa:
@@ -6157,7 +6148,7 @@ def eliminar_empresa(id_empresa):
 # -------------------------------
 # Listar todas las sucursales
 # -------------------------------
-@app.route("/sucursales", methods=["GET"])
+@app.route("/api/sucursaless", methods=["GET"])
 def get_sucursal():
     sucursales = Sucursal.query.all()
     return jsonify([{
@@ -6172,7 +6163,7 @@ def get_sucursal():
 # -------------------------------
 # Crear sucursal
 # -------------------------------
-@app.route("/sucursales", methods=["POST"])
+@app.route("/api/sucursales", methods=["POST"])
 def create_sucursal():
     data = request.get_json()
 
@@ -6195,7 +6186,7 @@ def create_sucursal():
 # -------------------------------
 # Actualizar sucursal
 # -------------------------------
-@app.route("/sucursales/<int:id>", methods=["PUT"])
+@app.route("/api/sucursales/<int:id>", methods=["PUT"])
 def update_sucursal(id):
     sucursal = Sucursal.query.get_or_404(id)
     data = request.get_json()
@@ -6218,7 +6209,7 @@ def update_sucursal(id):
 # -------------------------------
 # Eliminar sucursal
 # -------------------------------
-@app.route("/sucursales/<int:id>", methods=["DELETE"])
+@app.route("/api/sucursales/<int:id>", methods=["DELETE"])
 def delete_sucursal(id):
     sucursal = Sucursal.query.get_or_404(id)
     db.session.delete(sucursal)
@@ -6485,7 +6476,7 @@ def dashboard_unidades_completo():
 #Alertas del sistema mensajes
 #=====================================================================                                                      
 
-@app.route("/alertas/usuario/<int:user_id>", methods=["GET"])
+@app.route("/api/alertas/usuario/<int:user_id>", methods=["GET"])
 def get_alertas_usuario(user_id):
     # Obtener el usuario
     usuario = db.session.get(Usuarios, user_id)
@@ -6529,7 +6520,7 @@ def get_alertas_usuario(user_id):
     return jsonify({"alertas": resultado})
 
 
-@app.route("/solicitudes_mensajes/depurar", methods=["DELETE"])
+@app.route("/api/solicitudes_mensajes/depurar", methods=["DELETE"])
 def depurar_mensajes():
     limite = datetime.utcnow() - timedelta(days=90)
 

@@ -11,7 +11,7 @@ export default function HistorialGarantias() {
   const [registrosPorPagina, setRegistrosPorPagina] = useState(10); // default 10
 
   useEffect(() => {
-    fetch(`${API_URL}/api/historial_garantias`)
+    fetch(`${API_URL}/historial_garantias`)
       .then((res) => {
         if (!res.ok) throw new Error("Error en la respuesta del servidor");
         return res.json();

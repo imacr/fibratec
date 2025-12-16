@@ -24,7 +24,7 @@ const Garantias = () => {
   const [filtroInicio, setFiltroInicio] = useState("");
   const [filtroFin, setFiltroFin] = useState("");
 
-  const API_URL = `${BASE_URL}/api/garantias`;
+  const API_URL = `${BASE_URL}/garantias`;
 
   // Traer todas las garantías al cargar
   useEffect(() => {

@@ -14,7 +14,7 @@ export default function HistorialVerificaciones() {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/historial_verificaciones`)
+    fetch(`${API_URL}/historial_verificaciones`)
       .then((res) => res.json())
       .then((data) => {
         setHistorial(data);

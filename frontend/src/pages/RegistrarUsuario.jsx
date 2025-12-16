@@ -24,7 +24,7 @@ const initialFormData = {
 };
 
 const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
-  const API_URL = `${BASE_URL}/api/usuarios`;
+  const API_URL = `${BASE_URL}/usuarios`;
 
   const [formData, setFormData] = useState(initialFormData);
   const [choferesExistentes, setChoferesExistentes] = useState([]);
@@ -58,7 +58,7 @@ const RegistrarUsuario = ({ show, onClose, onCreate, usuarioToEdit }) => {
   // Cargar choferes existentes si el rol es chofer
   useEffect(() => {
     if (formData.rol === "Conductor") {
-      fetch(`${BASE_URL}/api/choferes`, {
+      fetch(`${BASE_URL}/choferes`, {
         headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
       })
         .then(res => res.json())

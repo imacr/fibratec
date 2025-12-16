@@ -150,8 +150,8 @@ const Crudgarantias = ({ onClose, onCreate, garantia }) => {
 
     const isUpdate = !!garantia;
     const url = isUpdate 
-      ? `${API_URL}/api/garantias/${garantia.id_garantia}` 
-      : `${API_URL}/api/garantias`;
+      ? `${API_URL}/garantias/${garantia.id_garantia}` 
+      : `${API_URL}/garantias`;
     const method = isUpdate ? 'PUT' : 'POST';
 
     try {

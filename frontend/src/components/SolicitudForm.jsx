@@ -33,6 +33,9 @@ export default function SolicitudFallaPaso1y2() {
         s => s.estado === "pendiente" || (s.estado === "aprobada" && !s.completada)
       );
       setMisSolicitudes(filtradas);
+      console.log("Solicitudes recibidas:", data);
+
+
     } catch (err) {
       Swal.fire("Error", "No se pudieron cargar las solicitudes", "error");
     }

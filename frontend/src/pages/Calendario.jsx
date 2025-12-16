@@ -16,7 +16,7 @@ export default function CalendarioEstiloMunicipal() {
   useEffect(() => {
     const fetchCalendario = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/calendario`);
+        const res = await fetch(`${API_URL}/calendario`);
         const data = await res.json();
         const safeData = data.map(c => ({
           mes: c.mes,

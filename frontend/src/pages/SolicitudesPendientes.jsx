@@ -187,7 +187,6 @@ export default function FallasChofer() {
             {itemsPerPageOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </label>
-        <button onClick={() => openModal()} className="btn-registrar-garantia">Registrar Falla</button>
       </div>
 
       <div className="table-wrapper">

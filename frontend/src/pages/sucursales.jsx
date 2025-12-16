@@ -23,7 +23,7 @@ export default function Sucursales() {
   // Cargar sucursales y empresas
   // -----------------------------
   const fetchSucursales = async () => {
-    const res = await fetch(`${API_URL}/sucursales`);
+    const res = await fetch(`${API_URL}/sucursaless`);
     const data = await res.json();
     setSucursales(data);
   };
@@ -153,7 +153,6 @@ export default function Sucursales() {
               <th>Teléfono</th>
               <th>Correo</th>
               <th>Horario</th>
-              <th>Empresa</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -168,7 +167,6 @@ export default function Sucursales() {
                   <td>{s.telefono}</td>
                   <td>{s.correo}</td>
                   <td>{s.horario}</td>
-                  <td>{empresa ? empresa.nombre_comercial : "N/A"}</td>
                   <td>
                     <button onClick={() => handleEdit(s)}>✎</button>
                     <button onClick={() => handleDelete(s.id_sucursal)}>🗑</button>

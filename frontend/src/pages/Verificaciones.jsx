@@ -63,7 +63,7 @@ const Verificaciones = () => {
   // ------------------------------------------------------------------
   const obtenerVerificaciones = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/verificaciones`);
+      const res = await fetch(`${API_URL}/verificaciones`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
@@ -89,7 +89,7 @@ const Verificaciones = () => {
     useEffect(() => {
     const obtenerUnidades = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/unidades`);
+        const res = await fetch(`${API_URL}/unidades`);
         if (!res.ok) throw new Error("Error al cargar unidades");
         const data = await res.json();
         setUnidades(data);
@@ -116,7 +116,7 @@ const eliminarVerificacion = async (id_verificacion) => {
 
   if (confirm.isConfirmed) {
     try {
-      const res = await fetch(`${API_URL}/api/verificaciones/${id_verificacion}`, {
+      const res = await fetch(`${API_URL}/verificaciones/${id_verificacion}`, {
         method: "DELETE"
       });
       const data = await res.json();
@@ -152,7 +152,7 @@ const checkUnidadLocal = async () => {
   setCheckingUnidad(true);
 
   try {
-    const res = await fetch(`${API_URL}/api/unidad/${idUnidad}`);
+    const res = await fetch(`${API_URL}/unidad/${idUnidad}`);
     if (!res.ok) throw new Error("Unidad no encontrada");
     const data = await res.json();
 
@@ -369,7 +369,7 @@ const checkUnidadLocal = async () => {
     formData.append("archivo", archivo);
 
     try {
-      const res = await fetch(`${API_URL}/api/verificaciones`, { method: "POST", body: formData });
+      const res = await fetch(`${API_URL}/verificaciones`, { method: "POST", body: formData });
       const data = await res.json();
 
       if (res.ok) {

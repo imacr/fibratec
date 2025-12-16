@@ -32,7 +32,7 @@ const Usuarios = () => {
   useEffect(() => {
     const fetchUsuarios = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/usuarios`, {
+        const response = await fetch(`${API_URL}/usuarios`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -75,7 +75,7 @@ const handleDeleteUsuario = async (id_usuario) => {
   if (!result.isConfirmed) return; // Si canceló, no hacemos nada
 
   try {
-    const response = await fetch(`${API_URL}/api/usuarios/${id_usuario}`, {
+    const response = await fetch(`${API_URL}/usuarios/${id_usuario}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`

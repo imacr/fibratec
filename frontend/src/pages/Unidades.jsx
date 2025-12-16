@@ -48,7 +48,7 @@ const [combustibles, setCombustibles] = useState([]);
 
 
 
-  const API_URL = `${BASE_URL}/api/unidades`;
+  const API_URL = `${BASE_URL}/unidades`;
 
 const [archivos, setArchivos] = useState({});
 
@@ -410,7 +410,7 @@ const handleAgregarUnidad = async (e) => {
     }
 
     // Enviar a la API
-    const response = await fetch(`${BASE_URL}/api/unidades`, {
+    const response = await fetch(`${BASE_URL}/unidades`, {
       method: "POST",
       body: formData,
     });

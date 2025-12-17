@@ -17,7 +17,7 @@ const RequestReset = () => {
 
     // 3. Envolvemos la petición en try/catch para manejar errores de red
     try {
-      const res = await fetch(`${API_URL}/api/request-reset`, {
+      const res = await fetch(`${API_URL}/request-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

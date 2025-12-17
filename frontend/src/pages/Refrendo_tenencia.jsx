@@ -329,7 +329,7 @@ export default function RegistroPago() {
       </div>
 
       {/* Filtros y búsqueda */}
-      <div className="filtros-container" style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+      <div className="mensajes-chofer-filtros" style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <label className='pagination-label'>
           Mostrar:
           <select className="pagination-select"

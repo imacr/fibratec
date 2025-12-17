@@ -491,6 +491,7 @@ const checkUnidadLocal = async () => {
 
 
       {/* Tabla de verificaciones */}
+      <div className="table-wrapper">
       <div className="table-responsive shadow rounded">
         <table className="elegant-table">
           <thead className="table-dark text-center">
@@ -559,6 +560,48 @@ const checkUnidadLocal = async () => {
           </tbody>
         </table>
       </div>
+      </div>
+
+      <div className="card-wrapper">
+  {verificaciones.length > 0 ? verificaciones.map(v => (
+    <div key={v.id_verificacion} className={`unidad-card ${v.estado_verificacion === "EN TIEMPO" ? "card-success" :
+                                                      v.estado_verificacion === "ATRASADA" ? "card-danger" :
+                                                      v.estado_verificacion === "PENDIENTE" ? "card-warning" : ""}`}>
+      <h3>Unidad: {v.marca} {v.vehiculo}</h3>
+      <p><b>ID Verificación:</b> {v.id_verificacion}</p>
+      <p><b>ID Unidad:</b> {v.id_unidad}</p>
+      <p><b>Placa:</b> {v.placa}</p>
+      <p><b>Modelo:</b> {v.modelo}</p>
+      <p><b>Última Verificación:</b> {v.ultima_verificacion}</p>
+      <p><b>1° Periodo Realizado:</b> {v.periodo_1_real}</p>
+      {v.url_verificacion_1 && (
+        <button className="btn btn-outline-danger btn-sm" onClick={() => setModalUrl(`${API_URL}/${v.url_verificacion_1}`)}>
+          Ver PDF 1
+        </button>
+      )}
+      <p><b>2° Periodo Realizado:</b> {v.periodo_2_real}</p>
+      {v.url_verificacion_2 && (
+        <button className="btn btn-outline-danger btn-sm" onClick={() => setModalUrl(`${API_URL}/${v.url_verificacion_2}`)}>
+          Ver PDF 2
+        </button>
+      )}
+      <p><b>Holograma:</b> {v.holograma}</p>
+      <p><b>Folio:</b> {v.folio_verificacion}</p>
+      <p><b>Engomado:</b> {v.engomado}</p>
+      <p><b>Estado:</b> {v.estado_verificacion}</p>
+      <p><b>Próxima Verificación:</b> {v.proxima_verificacion}</p>
+
+      <div className="actions-container">
+        <button className="btn btn-outline-danger btn-sm" onClick={() => eliminarVerificacion(v.id_verificacion)}>
+          <i className="fa-solid fa-trash icon-delete"></i> Eliminar
+        </button>
+      </div>
+    </div>
+  )) : (
+    <p>No hay verificaciones registradas</p>
+  )}
+</div>
+
 
       {modalUrl && <ModalFile url={modalUrl} onClose={() => setModalUrl(null)} />}
     </div>

@@ -72,7 +72,7 @@
 .elegant-table th,
 .elegant-table td {
     padding: 8px 10px;
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     text-align: center;
     white-space: normal; /* Permite multilínea */
     word-break: break-word; /* Rompe palabras largas */

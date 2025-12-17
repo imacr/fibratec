@@ -118,6 +118,58 @@ export default function HistorialPlacas() {
 
         </table>
       </div>
+      <div className="card-wrapper">
+  {currentItems.length > 0 ? currentItems.map(h => (
+    <div key={h.id_unidad} className="unidad-card">
+      <h3>Placa: {h.placa || "N/A"}</h3>
+      <p><b>ID Unidad:</b> {h.id_unidad}</p>
+      <p><b>Unidad:</b> {h.nombre_unidad || "N/A"} - {h.modelo || "N/A"}</p>
+      <p><b>Folio:</b> {h.folio || "N/A"}</p>
+      <p><b>Expedición:</b> {h.fecha_expedicion || "N/A"}</p>
+      <p><b>Vigencia:</b> {h.fecha_vigencia || "N/A"}</p>
+      <p><b>Monto Pago:</b> {h.monto_pago ? `$${h.monto_pago}` : "N/A"}</p>
+      <p><b>Usuario:</b> {h.usuario || "N/A"}</p>
+
+      <div className="file-buttons">
+        {h.url_placa_frontal && (
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={() => setFileModalUrl(`${API_URL}/${h.url_placa_frontal}`)}
+          >
+            Ver Placa Frontal
+          </button>
+        )}
+        {h.url_placa_trasera && (
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={() => setFileModalUrl(`${API_URL}/${h.url_placa_trasera}`)}
+          >
+            Ver Placa Trasera
+          </button>
+        )}
+        {h.url_comprobante_pago && (
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={() => setFileModalUrl(`${API_URL}/${h.url_comprobante_pago}`)}
+          >
+            Ver Comprobante
+          </button>
+        )}
+        {h.url_tarjeta_circulacion && (
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={() => setFileModalUrl(`${API_URL}/${h.url_tarjeta_circulacion}`)}
+          >
+            Tarjeta Circulación
+          </button>
+        )}
+      </div>
+    </div>
+  )) : (
+    <p>No hay registros disponibles.</p>
+  )}
+</div>
+
 
       {/* Paginación */}
       <div className="pagination">

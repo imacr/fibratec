@@ -208,9 +208,9 @@ export default function ListaSolicitudes() {
           <tbody>
             {currentItems.map((s, index) => (
               <tr key={s.id_solicitud} className={index % 2 === 0 ? "bg-gray-100" : "bg-white"}>
-              <td className="border px-4 py-2">{s.chofer?.nombre || "Sin asignar"}</td>
+              <td className="border px-4 py-2">{s.chofer?.nombre_chofer || "Sin asignar"}</td>
 
-                <td className="border px-4 py-2">{s.unidad}</td>
+                <td className="border px-4 py-2">{s.cve} {s.marca_auto} </td>
                 <td className="border px-4 py-2">{s.pieza}</td>
                 <td className="border px-4 py-2">{s.marca}</td>
                 <td className="border px-4 py-2">{s.tipo_servicio}</td>

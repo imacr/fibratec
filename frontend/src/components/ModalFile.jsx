@@ -22,7 +22,7 @@ const ModalFile = ({ url, onClose }) => {
         )}
 
       <a 
-      href={`${BASE_URL}/api/descargar/${url.split('/').slice(-2).join('/')}`} 
+      href={`${BASE_URL}/descargar/${url.split('/').slice(-2).join('/')}`} 
       className="download-btn"
     >
       Descargar

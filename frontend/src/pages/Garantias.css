@@ -126,3 +126,78 @@
         gap: 15px;
     }
 }
+
+/* ========================
+   Controles de filtros y paginación
+   ======================== */
+.pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pagination-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.pagination-controls input,
+.pagination-controls select {
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  min-width: 120px;
+  box-sizing: border-box;
+}
+
+/* Botón limpiar filtros */
+.pagination-controls .btn-limpiar-filtros {
+  background-color: #25d366;
+  color: white;
+  cursor: pointer;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  transition: 0.3s;
+}
+
+.pagination-controls .btn-limpiar-filtros:hover {
+  background-color: #128c7e;
+}
+
+/* ========================
+   Responsivo
+   ======================== */
+@media (max-width: 768px) {
+  .pagination-controls {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .pagination-controls label,
+  .pagination-controls .btn-limpiar-filtros,
+  .pagination-controls select,
+  .pagination-controls input {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pagination-controls label {
+    font-size: 0.85rem;
+  }
+
+  .pagination-controls input,
+  .pagination-controls select,
+  .pagination-controls .btn-limpiar-filtros {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}

@@ -195,3 +195,68 @@ label {
   border: 1px solid #ccc;
 }
 
+/* ========================
+   Filtros específicos MensajesChoferEpic
+   ======================== */
+.mensajes-chofer-filtros {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.mensajes-chofer-filtros label,
+.mensajes-chofer-filtros > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 14px;
+}
+
+.mensajes-chofer-filtros select,
+.mensajes-chofer-filtros input,
+.mensajes-chofer-filtros button {
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.mensajes-chofer-filtros button {
+  background-color: #25d366;
+  color: white;
+  cursor: pointer;
+  border: none;
+  transition: 0.3s;
+}
+
+.mensajes-chofer-filtros button:hover {
+  background-color: #128c7e;
+}
+
+/* ========================
+   Media Queries móviles
+   ======================== */
+@media (max-width: 768px) {
+  .mensajes-chofer-filtros {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mensajes-chofer-filtros label,
+  .mensajes-chofer-filtros > div {
+    width: 100%; /* que ocupen todo el ancho */
+  }
+
+  .mensajes-chofer-filtros select,
+  .mensajes-chofer-filtros input,
+  .mensajes-chofer-filtros button {
+    width: 100%;
+    font-size: 13px;
+    padding: 8px;
+  }
+}
+
+

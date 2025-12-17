@@ -98,3 +98,122 @@
 .filtros-container .css-yk16xz-control { 
   min-height: 35px; /* ajusta el tamaño del select de react-select */
 }
+
+
+/* ========================
+   Verificar Unidad (solo estilos, sin tocar React)
+   ======================== */
+/* Contenedor verificar unidad */
+.d-flex.gap-2.mb-3 {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center; /* alinear verticalmente el select y el botón */
+  flex-wrap: wrap;      /* permitir que se apilen en móviles */
+  margin-bottom: 15px !important;
+}
+
+/* Select ocupa todo el espacio disponible excepto el botón */
+.d-flex.gap-2.mb-3 > div {
+  flex: 1 1 auto;       /* crecer y encoger según el espacio */
+  min-width: 180px;     /* ancho mínimo */
+}
+
+/* Botón mantiene su tamaño mínimo */
+.d-flex.gap-2.mb-3 button.btn-outline-danger {
+  flex: 0 0 auto;       /* no crece ni encoge */
+  height: 35px;
+  padding: 6px 12px;
+  border-radius: 5px;
+}
+.d-flex.gap-2.mb-3 button.btn-outline-danger:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+.d-flex.gap-2.mb-3 span {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ========================
+   Filtros (solo estilos, sin tocar React)
+   ======================== */
+.filtros-container {
+  display: flex !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  align-items: flex-end !important;
+  margin-bottom: 20px !important;
+}
+
+.filtros-container label,
+.filtros-container > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.filtros-container select,
+.filtros-container input,
+.filtros-container button {
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  min-width: 120px;
+  box-sizing: border-box;
+}
+
+/* Botón limpiar filtros */
+.filtros-container button {
+  background-color: #25d366;
+  color: white;
+  cursor: pointer;
+  border: none;
+  transition: 0.3s;
+}
+
+.filtros-container button:hover {
+  background-color: #128c7e;
+}
+
+/* ========================
+   Media Queries móviles
+   ======================== */
+@media (max-width: 768px) {
+  .d-flex.gap-2.mb-3,
+  .filtros-container {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .d-flex.gap-2.mb-3 > div,
+  .filtros-container > * {
+    width: 100% !important;
+  }
+
+  .d-flex.gap-2.mb-3 button,
+  .filtros-container select,
+  .filtros-container input,
+  .filtros-container button {
+    width: 100% !important;
+    font-size: 13px;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .d-flex.gap-2.mb-3 label,
+  .filtros-container label {
+    font-size: 0.85rem;
+  }
+
+  .d-flex.gap-2.mb-3 button,
+  .filtros-container select,
+  .filtros-container input,
+  .filtros-container button {
+    font-size: 12px;
+  }
+}

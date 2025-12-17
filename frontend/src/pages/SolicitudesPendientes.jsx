@@ -187,6 +187,7 @@ export default function FallasChofer() {
             {itemsPerPageOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </label>
+        <button onClick={() => openModal()} className="btn-registrar-garantia">Registrar Falla</button>
       </div>
 
       <div className="table-wrapper">
@@ -236,6 +237,28 @@ export default function FallasChofer() {
           </tbody>
         </table>
       </div>
+<div className="card-wrapper">
+  {currentFallas.map(f => (
+    <div key={f.id_falla} className="unidad-card">
+      <p><b>Unidad:</b> {f.unidad}</p>
+      <p><b>Pieza:</b> {f.pieza}</p>
+      <p><b>Marca:</b> {f.marca}</p>
+      <p><b>Lugar:</b> {f.lugar_reparacion}</p>
+      <p><b>Tipo Servicio:</b> {f.tipo_servicio}</p>
+      <p><b>Descripción:</b> {f.descripcion}</p>
+      <p><b>Proveedor:</b> {f.proveedor}</p>
+      <p><b>Tipo Pago:</b> {f.tipo_pago}</p>
+      <p><b>Costo:</b> ${f.costo?.toLocaleString()}</p>
+      <p><b>Tiempo Uso Pieza:</b> {f.tiempo_uso_pieza || '—'}</p>
+      <p><b>Aplica Póliza:</b> {f.aplica_poliza ? 'Sí' : 'No'}</p>
+      {f.url_comprobante && <button onClick={() => setModalFile(`${BASE_URL}/${f.url_comprobante}`)}>Ver PDF</button>}
+      <div className="card-actions">
+        <button onClick={() => setModalDetalle(f)}>Detalle</button>
+        <button onClick={() => openModal(f)}>Editar</button>
+      </div>
+    </div>
+  ))}
+</div>
 
       {/* Paginación */}
       <div className="pagination">

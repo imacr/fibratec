@@ -45,19 +45,19 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuración de CORS para permitir peticiones desde tu frontend (Vite en puerto 5173 por defecto)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.254.158:5173"}})
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 # Configuración segura usando variables de entorno
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'una-clave-secreta-para-desarrollo')
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.254.158:5173"}})
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 # Evitar que flask-sqlalchemy lea otra variable de entorno
-DB_USER = os.getenv('DB_USER', 'Imanol')
-DB_PASS = os.getenv('DB_PASS', 'FIBRATEC0101')
-DB_HOST = os.getenv('DB_HOST', '192.168.253.135')
-DB_NAME = os.getenv('DB_NAME', 'control_vehicular_unificada')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASS = os.getenv('DB_PASS', 'admin')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_NAME = os.getenv('DB_NAME', 'control_vehicular_unificada1')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'una-clave-secreta')
@@ -594,7 +594,11 @@ class FrecuenciasPorMarca(db.Model):
     __tablename__ = 'FrecuenciasPorMarca'
     id_frecuencia = db.Column(db.Integer, primary_key=True, autoincrement=True)
     marca = db.Column(db.String(100), nullable=False)
-    id_tipo_mantenimiento = db.Column(db.Integer, db.ForeignKey('tiposmantenimiento.id_tipo_mantenimiento'), nullable=False)
+    id_tipo_mantenimiento = db.Column(
+            db.Integer, 
+            db.ForeignKey('TiposMantenimiento.id_tipo_mantenimiento'),  # <- corregido
+            nullable=False
+        )    
     frecuencia_tiempo = db.Column(db.Integer, nullable=False)        # días
     frecuencia_kilometraje = db.Column(db.Integer, nullable=False)   # km
 
@@ -606,7 +610,11 @@ class MantenimientosProgramados(db.Model):
         db.ForeignKey('Unidades.id_unidad'),
         nullable=False
     )
-    id_tipo_mantenimiento = db.Column(db.Integer, db.ForeignKey('tiposmantenimiento.id_tipo_mantenimiento'), nullable=False)
+    id_tipo_mantenimiento = db.Column(
+            db.Integer,
+            db.ForeignKey('TiposMantenimiento.id_tipo_mantenimiento'),  # <- corregido
+            nullable=False
+        )    
     fecha_ultimo_mantenimiento = db.Column(db.Date)
     kilometraje_ultimo = db.Column(db.Integer)
     proximo_mantenimiento = db.Column(db.Date)
@@ -723,7 +731,7 @@ def get_db_connection():
 
 # --- 3. RUTAS DE LA API ---
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])  
 @limiter.limit("200 per minute")
 def login():
     data = request.get_json()
@@ -1070,7 +1078,7 @@ def request_password_reset():
         try:
             # Crear el enlace de restablecimiento
             #reset_link = f"{os.getenv('FRONTEND_URL', 'http://192.168.254.158:5173')}/reset-password/{token}"
-            frontend_url = "http://192.168.254.158:5173"
+            frontend_url = "http://localhost:5173"
             reset_link = f"{frontend_url}/reset-password/{token}"
 
             msg = Message(
@@ -1609,9 +1617,14 @@ def agregar_unidad():
         # Programar mantenimientos iniciales según la marca de la unidad
         # ----------------------------
         try:
-            frecuencias = FrecuenciasPorMarca.query.filter_by(marca=nueva_unidad.marca).all()
+            # Buscar frecuencias ignorando mayúsculas/minúsculas
+            frecuencias = FrecuenciasPorMarca.query.filter(
+                func.lower(FrecuenciasPorMarca.marca) == (nueva_unidad.marca or "").lower()
+            ).all()
+
             created = []
             for f in frecuencias:
+                # Verificar si ya existe mantenimiento programado
                 existe = MantenimientosProgramados.query.filter_by(
                     id_unidad=nueva_unidad.id_unidad,
                     id_tipo_mantenimiento=f.id_tipo_mantenimiento
@@ -1619,9 +1632,11 @@ def agregar_unidad():
                 if existe:
                     continue
 
+                # Calcular fecha y kilometraje próximo
                 proximo_fecha = date.today() + timedelta(days=f.frecuencia_tiempo)
                 proximo_km = (nueva_unidad.kilometraje_actual or 0) + f.frecuencia_kilometraje
 
+                # Crear registro de mantenimiento programado
                 mp = MantenimientosProgramados(
                     id_unidad=nueva_unidad.id_unidad,
                     id_tipo_mantenimiento=f.id_tipo_mantenimiento,
@@ -1633,6 +1648,7 @@ def agregar_unidad():
                 db.session.add(mp)
                 db.session.flush()
                 created.append(mp.id_mantenimiento_programado)
+
             db.session.commit()
             print(f"Mantenimientos programados para la unidad {nueva_unidad.id_unidad}: {created}")
 
@@ -1640,7 +1656,6 @@ def agregar_unidad():
             db.session.rollback()
             print(f"Error al programar mantenimientos iniciales: {e}")
 
-        # ----------------------------
         # Retorno
         # ----------------------------
         return jsonify({
@@ -1988,13 +2003,14 @@ def obtener_unidad_por_chofer(id_usuario):
             return jsonify({'error': 'El usuario no está vinculado a un chofer'}), 404
 
         # Buscar asignación activa mediante id_usuario
+        # Buscar asignación activa mediante id_usuario
         asignacion = (
             Asignaciones.query
-            .filter_by(id_usuario=id_usuario)
-            .filter((Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= date.today()))
+            .filter_by(id_usuario=id_usuario, status='activo')  # <- filtra solo asignaciones activas
             .order_by(Asignaciones.fecha_asignacion.desc())
             .first()
         )
+
 
         if not asignacion:
             return jsonify({'error': 'No tiene unidad asignada'}), 404
@@ -6197,7 +6213,7 @@ def update_sucursal(id):
             return jsonify({"error": "La empresa no existe"}), 400
         sucursal.id_empresa = data["id_empresa"]
 
-    sucursal.nombre = data.get("nombre", sucursal.nombre)
+    sucursal.name = data.get("nombre", sucursal.name)
     sucursal.direccion = data.get("direccion", sucursal.direccion)
     sucursal.telefono = data.get("telefono", sucursal.telefono)
     sucursal.correo = data.get("correo", sucursal.correo)

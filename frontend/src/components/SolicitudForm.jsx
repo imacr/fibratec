@@ -18,7 +18,6 @@ export default function SolicitudFallaPaso1y2() {
     id_unidad: "",
     id_pieza: "",
     id_marca: "",
-    tipo_servicio: "",
     descripcion: "",
     id_usuario: idChofer || "",
   });

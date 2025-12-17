@@ -31,7 +31,7 @@ export default function DashboardUnidades() {
   const [verGraficoSinPoliza, setVerGraficoSinPoliza] = useState(false);
 
   useEffect(() => {
-    fetch(`${BASE_URL}/api/dashboard/unidades_completo`)
+    fetch(`${BASE_URL}/dashboard/unidades_completo`)
       .then((res) => res.json())
       .then((data) => {
         setDashboard(data);

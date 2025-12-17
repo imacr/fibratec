@@ -71,7 +71,7 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  fetch(`${BASE_URL}/sucursales`)
+  fetch(`${BASE_URL}/sucursaless`)
     .then(res => res.json())
     .then(data => setSucursales(data))
     .catch(err => console.error(err));

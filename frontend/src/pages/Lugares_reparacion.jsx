@@ -12,12 +12,11 @@ export default function LugaresReparacion() {
   const [showRegistro, setShowRegistro] = useState(false);
   const [form, setForm] = useState({});
   const [page, setPage] = useState(1);
-  const [itemsPerPage] = useState(5);
-  const [total, setTotal] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
-  const totalPages = Math.ceil(total / itemsPerPage) || 1;
-
-  // --- Cargar lugares ---
+  // ==============================
+  // Carga de lugares
+  // ==============================
   useEffect(() => {
     fetchLugares();
   }, []);
@@ -27,19 +26,19 @@ export default function LugaresReparacion() {
       const res = await fetch(`${API_URL}/lugares`);
       const data = await res.json();
       setLugares(data || []);
-      setTotal(data.length || 0);
-    } catch (err) {
+    } catch {
       Swal.fire("Error", "No se pudieron cargar los lugares de reparación", "error");
     }
   };
 
-  // --- Manejo de formulario ---
+  // ==============================
+  // Formulario
+  // ==============================
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
   };
 
-  // --- Registro ---
   const handleRegistro = async () => {
     if (!form.nombre_lugar) return Swal.fire("Advertencia", "El nombre es obligatorio", "warning");
     try {
@@ -55,18 +54,16 @@ export default function LugaresReparacion() {
       setForm({});
       setShowRegistro(false);
       fetchLugares();
-    } catch (err) {
+    } catch {
       Swal.fire("Error", "No se pudo registrar el lugar", "error");
     }
   };
 
-  // --- Preparar edición ---
   const handleEdit = (lugar) => {
     setEdit(lugar);
     setForm({ ...lugar });
   };
 
-  // --- Actualización ---
   const handleActualizar = async () => {
     if (!edit) return;
     try {
@@ -82,12 +79,11 @@ export default function LugaresReparacion() {
       setEdit(null);
       setForm({});
       fetchLugares();
-    } catch (err) {
+    } catch {
       Swal.fire("Error", "No se pudo actualizar el lugar", "error");
     }
   };
 
-  // --- Eliminación ---
   const handleEliminar = async (id_lugar) => {
     const result = await Swal.fire({
       title: "¿Seguro que quieres eliminar este lugar?",
@@ -105,10 +101,18 @@ export default function LugaresReparacion() {
 
       Swal.fire("Éxito", "Lugar eliminado correctamente", "success");
       fetchLugares();
-    } catch (err) {
+    } catch {
       Swal.fire("Error", "No se pudo eliminar el lugar", "error");
     }
   };
+
+  // ==============================
+  // Paginación
+  // ==============================
+  const totalPages = itemsPerPage === "todos" ? 1 : Math.ceil(lugares.length / itemsPerPage);
+  const indiceInicial = itemsPerPage === "todos" ? 0 : (page - 1) * itemsPerPage;
+  const indiceFinal = itemsPerPage === "todos" ? lugares.length : indiceInicial + itemsPerPage;
+  const lugaresPaginados = itemsPerPage === "todos" ? lugares : lugares.slice(indiceInicial, indiceFinal);
 
   return (
     <div className="unidades-container">
@@ -117,6 +121,23 @@ export default function LugaresReparacion() {
       <button className="btn-registrar-garantia" onClick={() => setShowRegistro(true)}>
         Registrar Nuevo Lugar
       </button>
+
+      {/* Selector Mostrar */}
+      <div className="paginacion-controles">
+        <label>Mostrar:</label>
+        <select
+          value={itemsPerPage}
+          onChange={(e) => {
+            setItemsPerPage(e.target.value === "todos" ? "todos" : parseInt(e.target.value));
+            setPage(1);
+          }}
+        >
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="todos">Todos</option>
+        </select>
+      </div>
 
       {/* Tabla */}
       <div className="table-wrapper">
@@ -133,23 +154,54 @@ export default function LugaresReparacion() {
             </tr>
           </thead>
           <tbody>
-            {lugares.map(l => (
-              <tr key={l.id_lugar}>
-                <td>{l.id_lugar}</td>
-                <td>{l.nombre_lugar}</td>
-                <td>{l.tipo_lugar}</td>
-                <td>{l.direccion}</td>
-                <td>{l.contacto}</td>
-                <td>{l.observaciones}</td>
-                <td>
-                  <button onClick={() => handleEdit(l)}>Editar</button>
-                  <button onClick={() => handleEliminar(l.id_lugar)}>Eliminar</button>
-                </td>
+            {lugaresPaginados.length > 0 ? (
+              lugaresPaginados.map(l => (
+                <tr key={l.id_lugar}>
+                  <td>{l.id_lugar}</td>
+                  <td>{l.nombre_lugar}</td>
+                  <td>{l.tipo_lugar}</td>
+                  <td>{l.direccion}</td>
+                  <td>{l.contacto}</td>
+                  <td>{l.observaciones}</td>
+                  <td>
+                    <button onClick={() => handleEdit(l)}>Editar</button>
+                    <button onClick={() => handleEliminar(l.id_lugar)}>Eliminar</button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" style={{ textAlign: "center" }}>No hay lugares registrados</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Tarjetas */}
+      <div className="card-wrapper">
+        {lugaresPaginados.map(l => (
+          <div key={l.id_lugar} className="unidad-card">
+            <p><b>ID:</b> {l.id_lugar}</p>
+            <p><b>Nombre:</b> {l.nombre_lugar}</p>
+            <p><b>Tipo:</b> {l.tipo_lugar}</p>
+            <p><b>Dirección:</b> {l.direccion}</p>
+            <p><b>Contacto:</b> {l.contacto}</p>
+            <p><b>Observaciones:</b> {l.observaciones}</p>
+            <button onClick={() => handleEdit(l)}>Editar</button>
+            <button onClick={() => handleEliminar(l.id_lugar)}>Eliminar</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Paginación */}
+      {itemsPerPage !== "todos" && (
+        <div className="pagination">
+          <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1}>Anterior</button>
+          <span>Página {page} de {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page === totalPages}>Siguiente</button>
+        </div>
+      )}
 
       {/* Modal Registro */}
       {showRegistro && (
@@ -208,13 +260,6 @@ export default function LugaresReparacion() {
           </div>
         </Modal>
       )}
-
-      {/* Paginación básica */}
-      <div className="pagination">
-        <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1}>Anterior</button>
-        <span>Página {page} de {totalPages}</span>
-        <button onClick={() => setPage(p => Math.min(p + 1, totalPages))} disabled={page === totalPages}>Siguiente</button>
-      </div>
     </div>
   );
 }

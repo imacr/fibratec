@@ -181,6 +181,63 @@ export default function MantenimientosMayores() {
           )}
         </div>
       )}
+<div className="card-wrapper">
+  {mostrarFilas.length > 0 ? mostrarFilas
+    .slice((paginaActual - 1) * itemsPorPagina, paginaActual * itemsPorPagina)
+    .map((p) => {
+      const dias = diasRestantes(p.proximo_mantenimiento);
+      const kmRestante = (p.proximo_kilometraje || 0) - (p.kilometraje_ultimo || 0);
+      const activar =
+        dias !== null &&
+        kmRestante !== null &&
+        (dias <= 7 || kmRestante <= 500 || dias < 0 || kmRestante < 0);
+
+      const alerta =
+        dias < 0 || kmRestante < 0
+          ? "card-vencido-mayor"
+          : dias <= 7 || kmRestante <= 500
+          ? "card-proximo-mayor"
+          : "card-normal";
+
+      return (
+        <div key={p.id_mantenimiento_programado} className={`unidad-card ${alerta}`}>
+          <h3>{p.marca} - {p.tipo}</h3>
+          <p><b>ID Unidad:</b> {p.id_unidad}</p>
+          <p><b>Clase tipo:</b> {p.clase_tipo}</p>
+          <p><b>Último Mantenimiento:</b> {p.fecha_ultimo_mantenimiento || "-"}</p>
+          <p><b>Kilometraje Último:</b> {p.kilometraje_ultimo || "-"}</p>
+          <p><b>Próximo Mantenimiento:</b> {p.proximo_mantenimiento || "-"}</p>
+          <p><b>Próximo Kilometraje:</b> {p.proximo_kilometraje || "-"}</p>
+          <p><b>Días Restantes:</b> {dias !== null ? (dias >= 0 ? `${dias} días` : "Vencido") : "-"}</p>
+
+          <div className="actions-container">
+            <button
+              className="btn btn-registrar"
+              disabled={!activar}
+              onClick={() => handleRegistrar(p)}
+            >
+              Registrar
+            </button>
+          </div>
+        </div>
+      );
+    })
+    : <p>No hay mantenimientos mayores programados.</p>
+  }
+
+  {/* Paginación */}
+  {itemsPorPagina !== "all" && mostrarFilas.length > itemsPorPagina && (
+    <div className="paginacion">
+      <button onClick={() => setPaginaActual(prev => Math.max(prev - 1, 1))} disabled={paginaActual === 1}>
+        {"<"}
+      </button>
+      <span>Página {paginaActual} de {Math.ceil(mostrarFilas.length / itemsPorPagina)}</span>
+      <button onClick={() => setPaginaActual(prev => Math.min(prev + 1, Math.ceil(mostrarFilas.length / itemsPorPagina)))} disabled={paginaActual === Math.ceil(mostrarFilas.length / itemsPorPagina)}>
+        {">"}
+      </button>
+    </div>
+  )}
+</div>
 
       {registroSeleccionado && (
         <div className="form-overlay">

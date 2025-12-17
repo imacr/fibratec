@@ -255,6 +255,15 @@ const Sidebar = () => {
                     <NavLink to="/frecuencia_mantenimiento" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-history"></i> Frecuencia por marca
                     </NavLink>
+                    <NavLink to="/lugaresrep " className={({ isActive }) => (isActive ? "active" : "")}>
+                      <i className="fa fa-history"></i> Lugares reparacion
+                    </NavLink>
+                    <NavLink to="/marcapieza" className={({ isActive }) => (isActive ? "active" : "")}>
+                      <i className="fa fa-history"></i> Marcas Piezas
+                    </NavLink>
+                    <NavLink to="/piezas" className={({ isActive }) => (isActive ? "active" : "")}>
+                      <i className="fa fa-history"></i> Piezas
+                    </NavLink>
 
                 </div>
               )}

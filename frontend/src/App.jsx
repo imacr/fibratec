@@ -53,6 +53,7 @@ import MantenimientosMayores from "./pages/mantenimeintosmayores";
 import Marcas from "./pages/marcas_piezas";
 import LugaresReparacion from "./pages/Lugares_reparacion";
 import Piezas from "./pages/piezas";
+import ReporteFallasGraficas from "./pages/ReporteUnidadesFallas";
 
 //import Mensajeschofer from "./pages/chofer_mensajes";
 // ====================================================
@@ -151,6 +152,7 @@ const [showChangePassword, setShowChangePassword] = useState(false);
                     <Route path="/marcapieza" element={<Marcas />} />
                     <Route path="/lugaresrep" element={<LugaresReparacion />} />
                     <Route path="/piezas" element={<Piezas />} />
+                    <Route path="/reportefallas" element={<ReporteFallasGraficas />} />
 
 
 

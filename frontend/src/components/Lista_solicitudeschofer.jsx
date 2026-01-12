@@ -18,7 +18,7 @@ export default function MensajesChoferChat() {
     const idChofer = localStorage.getItem("usuarioId");
     const rol = localStorage.getItem("rol");
 
-    if (!idChofer || rol !== "chofer") {
+    if (!idChofer || rol !== "Conductor") {
       setError("No tienes permisos para ver estos mensajes");
       setLoading(false);
       return;
@@ -85,7 +85,7 @@ export default function MensajesChoferChat() {
             {solicitud.mensajes.map((m) => (
               <div
                 key={m.id_mensaje}
-                className={`chat-bubble ${m.quien === "admin" ? "admin" : "chofer"}`}
+                className={`chat-bubble ${m.quien === "Aministrador" ? "Aministrador" : "Conductor"}`}
               >
                 {m.archivo_adjunto && (
                   <img

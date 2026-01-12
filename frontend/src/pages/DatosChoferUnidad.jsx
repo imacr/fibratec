@@ -60,8 +60,6 @@ export default function DatosChoferUnidad() {
           <p><strong>Colonia / Localidad:</strong> {chofer.colonia_localidad || "No especificada"}</p>
           <p><strong>Código Postal:</strong> {chofer.codpos || "No especificado"}</p>
           <p><strong>Municipio:</strong> {chofer.municipio || "No especificado"}</p>
-
-          <button className="btn-editar" onClick={handleEditarChofer}>Editar chofer</button>
         </section>
       ) : (
         <section className="tarjeta chofer">

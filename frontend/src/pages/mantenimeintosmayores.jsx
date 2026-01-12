@@ -3,13 +3,14 @@ import Swal from "sweetalert2";
 import { API_URL } from "../config";
 import Mantenimientos from "./Mantenimientos";
 import "./Unidades.css";
+import Modal from "../components/Modal";
 
 export default function MantenimientosMayores() {
   const [programados, setProgramados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
-
+    const [registroEditar, setRegistroEditar] = useState(null);
   // Filtros
   const [filtroID, setFiltroID] = useState("");
   const [filtroMarca, setFiltroMarca] = useState("");
@@ -74,6 +75,87 @@ export default function MantenimientosMayores() {
     ? filtrados
     : filtrados.slice((paginaActual - 1) * itemsPorPagina, paginaActual * itemsPorPagina);
 
+    const handleEdit = (p) => {
+      setRegistroSeleccionado(null); // 🔴 cerrar registrar
+      setRegistroEditar(p);          // 🟢 abrir editar
+    };
+    
+      const handleDelete = async (registro) => {
+        Swal.fire({
+          title: "Eliminar mantenimiento",
+          text: `¿Deseas eliminar el mantenimiento de la unidad ${registro.cve} - ${registro.marca} ${registro.clase_tipo}?`,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
+        }).then(async (result) => {
+          if (result.isConfirmed) {
+            try {
+              const res = await fetch(`${API_URL}/mantenimientos_programados/${registro.id_mantenimiento_programado}`, {
+                method: "DELETE",
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Error al eliminar");
+              Swal.fire("Eliminado", data.message, "success");
+              fetchProgramados();
+            } catch (err) {
+              console.error(err);
+              Swal.fire("Error", err.message, "error");
+            }
+          }
+        });
+      };
+    
+      // --- FORMULARIO DE EDITAR ---
+      const FormularioEditar = ({ registro, onClose }) => {
+        const [fechaUltimo, setFechaUltimo] = useState(registro.fecha_ultimo_mantenimiento || "");
+        const [kmUltimo, setKmUltimo] = useState(registro.kilometraje_ultimo || "");
+        const [proximoFecha, setProximoFecha] = useState(registro.proximo_mantenimiento || "");
+        const [proximoKm, setProximoKm] = useState(registro.proximo_kilometraje || "");
+    
+        const handleSubmit = async (e) => {
+          e.preventDefault();
+          try {
+            const res = await fetch(`${API_URL}/mantenimientos_programados/${registro.id_mantenimiento_programado}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fecha_ultimo_mantenimiento: fechaUltimo,
+                kilometraje_ultimo: kmUltimo,
+                proximo_mantenimiento: proximoFecha,
+                proximo_kilometraje: proximoKm,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Error al actualizar");
+            Swal.fire("Actualizado", data.message, "success");
+            fetchProgramados();
+            onClose();
+          } catch (err) {
+            console.error(err);
+            Swal.fire("Error", err.message, "error");
+          }
+        };
+    
+        return (
+          <form onSubmit={handleSubmit} className="form-editar">
+            <h3>Editar Mantenimiento</h3>
+            <label>Último mantenimiento:</label>
+            <input type="date" value={fechaUltimo} onChange={(e) => setFechaUltimo(e.target.value)} />
+            <label>Kilometraje último:</label>
+            <input type="number" value={kmUltimo} onChange={(e) => setKmUltimo(e.target.value)} />
+            <label>Próximo mantenimiento:</label>
+            <input type="date" value={proximoFecha} onChange={(e) => setProximoFecha(e.target.value)} />
+            <label>Próximo kilometraje:</label>
+            <input type="number" value={proximoKm} onChange={(e) => setProximoKm(e.target.value)} />
+            <div className="botones-form">
+              <button type="submit" className="btn btn-primary">Guardar</button>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            </div>
+          </form>
+        );
+      };
+    
   return (
     <div className="unidades-container">
       <h1>Mantenimientos Mayores</h1>
@@ -105,9 +187,8 @@ export default function MantenimientosMayores() {
           <table className="elegant-table">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>CVE</th>
                 <th>Marca</th>
-                <th>Clase tipo</th>
                 <th>Tipo</th>
                 <th>Último Mantenimiento</th>
                 <th>Kilometraje Último</th>
@@ -121,24 +202,27 @@ export default function MantenimientosMayores() {
               {mostrarFilas.length > 0 ? (
                 mostrarFilas.map((p) => {
                   const dias = diasRestantes(p.proximo_mantenimiento);
-                  const kmRestante = (p.proximo_kilometraje || 0) - (p.kilometraje_ultimo || 0);
-                  const activar =
-                    dias !== null &&
-                    kmRestante !== null &&
-                    (dias <= 7 || kmRestante <= 500 || dias < 0 || kmRestante < 0);
+                  const kmActual = parseInt(p.kilometraje_actual, 10);
+                  const kmProximo = parseInt(p.proximo_kilometraje, 10);
+
+                  const kmRestante =
+                    !isNaN(kmActual) && !isNaN(kmProximo)
+                      ? kmProximo - kmActual
+                      : null;
+
+                  const activar = dias !== null && kmRestante !== null && (dias <= 7 || kmRestante <= 500 || dias < 0 || kmRestante < 0);
 
                   const alerta =
                     dias < 0 || kmRestante < 0
-                      ? "alerta-vencido-mayor"
+                      ? "alerta-vencido-menor"
                       : dias <= 7 || kmRestante <= 500
-                      ? "alerta-proximo-mayor"
+                      ? "alerta-proximo-menor"
                       : "";
 
                   return (
                     <tr key={p.id_mantenimiento_programado} className={alerta}>
-                      <td>{p.id_unidad}</td>
-                      <td>{p.marca}</td>
-                      <td>{p.clase_tipo}</td>
+                      <td>{p.cve}</td>
+                      <td>{p.marca} {p.version} {p.clase_tipo}</td>
                       <td>{p.tipo}</td>
                       <td>{p.fecha_ultimo_mantenimiento || "-"}</td>
                       <td>{p.kilometraje_ultimo || "-"}</td>
@@ -153,6 +237,10 @@ export default function MantenimientosMayores() {
                         >
                           Registrar
                         </button>
+                      <button onClick={() => handleEdit(p)}><i className="fa-solid fa-pen-to-square icon-edit"></i></button>
+
+                      <button onClick={() => handleDelete(p)}><i className="fa-solid fa-trash icon-delete"></i></button>
+
                       </td>
                     </tr>
                   );
@@ -203,7 +291,7 @@ export default function MantenimientosMayores() {
         <div key={p.id_mantenimiento_programado} className={`unidad-card ${alerta}`}>
           <h3>{p.marca} - {p.tipo}</h3>
           <p><b>ID Unidad:</b> {p.id_unidad}</p>
-          <p><b>Clase tipo:</b> {p.clase_tipo}</p>
+          <p><b>Clase tipo:</b>{p.marca} {p.version} {p.clase_tipo} </p>
           <p><b>Último Mantenimiento:</b> {p.fecha_ultimo_mantenimiento || "-"}</p>
           <p><b>Kilometraje Último:</b> {p.kilometraje_ultimo || "-"}</p>
           <p><b>Próximo Mantenimiento:</b> {p.proximo_mantenimiento || "-"}</p>
@@ -218,6 +306,10 @@ export default function MantenimientosMayores() {
             >
               Registrar
             </button>
+            <button onClick={() => handleEdit(p)}><i className="fa-solid fa-pen-to-square icon-edit"></i></button>
+
+            <button onClick={() => handleDelete(p)}><i className="fa-solid fa-trash icon-delete"></i></button>
+
           </div>
         </div>
       );
@@ -239,17 +331,29 @@ export default function MantenimientosMayores() {
   )}
 </div>
 
-      {registroSeleccionado && (
-        <div className="form-overlay">
-          <button
-            className="btn btn-secondary mb-3"
-            onClick={() => setRegistroSeleccionado(null)}
-          >
-            Cerrar Formulario
-          </button>
-          <Mantenimientos registroPrellenado={registroSeleccionado} />
-        </div>
-      )}
+{registroEditar ? (
+  <Modal onClose={() => setRegistroEditar(null)}>
+    <FormularioEditar
+      registro={registroEditar}
+      onClose={() => setRegistroEditar(null)}
+    />
+  </Modal>
+) : registroSeleccionado ? (
+  <Modal onClose={() => setRegistroSeleccionado(null)}>
+    <Mantenimientos
+      registroPrellenado={registroSeleccionado}
+      onSuccess={() => {
+        setRegistroSeleccionado(null);
+        fetchProgramados();
+      }}
+    />
+
+
+  </Modal>
+) : null}
+
+
+
     </div>
   );
 }

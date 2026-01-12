@@ -34,7 +34,7 @@ const CambiarContraseña = ({ usuarioId }) => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${BASE_URL}/api/usuarios/${usuarioId}`, {
+      const response = await fetch(`${BASE_URL}/usuarios/${usuarioId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

@@ -39,7 +39,7 @@ export default function HistorialMantenimientos() {
           <thead>
             <tr>
               <th>ID</th>
-              <th>ID Unidad</th>
+              <th>Unidad</th>
               <th>Tipo de Mantenimiento</th>
               <th>Descripción</th>
               <th>Fecha Realización</th>
@@ -58,7 +58,7 @@ export default function HistorialMantenimientos() {
               mantenimientosFiltrados.map((m) => (
                 <tr key={m.id_mantenimiento}>
                   <td>{m.id_mantenimiento}</td>
-                  <td>{m.id_unidad}</td>
+                  <td>{m.cve} {m.marca} {m.tipo_unidad} {m.version} </td>
                   <td>{m.tipo_mantenimiento}</td>
                   <td>{m.descripcion || "-"}</td>
                   <td>{m.fecha_realizacion}</td>

@@ -4,6 +4,7 @@ import "./Calendario.css";
 
 export default function CalendarioEstiloMunicipal() {
   const [calendario, setCalendario] = useState([]);
+  const anioActual = new Date().getFullYear();
 
   const colorMap = {
     amarillo: "#f7dc6f",
@@ -37,12 +38,18 @@ export default function CalendarioEstiloMunicipal() {
 
   const diasSemana = ["L", "M", "M", "J", "V", "S", "D"];
 
-  return (
+return (
+  <div className="calendario-wrapper">
+    <h2 className="titulo-calendario">
+      Calendario de Verificación Vehicular
+    </h2>
+
     <div className="calendario-municipal">
       {Array.from({ length: 12 }, (_, i) => i + 1).map(mes => {
-        const fecha = new Date(2025, mes - 1, 1);
-        const diasMes = new Date(2025, mes, 0).getDate();
-        const primerDiaSemana = fecha.getDay() === 0 ? 6 : fecha.getDay() - 1; // lunes=0
+        const fecha = new Date(anioActual, mes - 1, 1);
+        const diasMes = new Date(anioActual, mes, 0).getDate();
+
+        const primerDiaSemana = fecha.getDay() === 0 ? 6 : fecha.getDay() - 1;
         const coloresMes = getMesColors(mes);
 
         return (
@@ -50,20 +57,24 @@ export default function CalendarioEstiloMunicipal() {
             <div className="nombre-mes">
               {fecha.toLocaleString("es", { month: "long" }).toUpperCase()}
             </div>
+
             <div className="dias-semana">
               {diasSemana.map(d => (
                 <div key={d} className="dia-nombre">{d}</div>
               ))}
             </div>
+
             <div className="dias-mes">
-              {/* días vacíos antes del primer día */}
               {Array.from({ length: primerDiaSemana }, (_, idx) => (
                 <div key={`empty-${idx}`} className="dia vacio"></div>
               ))}
-              {/* días del mes */}
+
               {Array.from({ length: diasMes }, (_, d) => {
                 const indexColor = Math.floor((d * coloresMes.length) / diasMes);
-                const color = coloresMes.length > 0 ? colorMap[coloresMes[indexColor]] : "transparent";
+                const color = coloresMes.length > 0
+                  ? colorMap[coloresMes[indexColor]]
+                  : "transparent";
+
                 return (
                   <div
                     key={d}
@@ -79,5 +90,7 @@ export default function CalendarioEstiloMunicipal() {
         );
       })}
     </div>
-  );
+  </div>
+);
+
 }

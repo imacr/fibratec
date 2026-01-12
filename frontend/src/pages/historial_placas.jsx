@@ -68,8 +68,8 @@ export default function HistorialPlacas() {
 <thead>
   <tr>
     <th>ID Unidad</th>
-    <th>Placa</th>
     <th>Unidad</th>
+    <th>Placa</th>
     <th>Folio</th>
     <th>Expedición</th>
     <th>Vigencia</th>
@@ -84,9 +84,9 @@ export default function HistorialPlacas() {
 <tbody>
   {currentItems.map(h => (
     <tr key={h.id_unidad}>
-      <td>{h.id_unidad}</td>
+      <td>{h.cve}</td>
+      <td>{h.marca || "N/A"} {h.nombre_unidad || "N/A"} {h.modelo || "N/A"}</td>
       <td>{h.placa || "N/A"}</td>
-      <td>{h.nombre_unidad || "N/A"} - {h.modelo || "N/A"}</td>
       <td>{h.folio || "N/A"}</td>
       <td>{h.fecha_expedicion || "N/A"}</td>
       <td>{h.fecha_vigencia || "N/A"}</td>

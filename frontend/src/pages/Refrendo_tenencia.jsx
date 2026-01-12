@@ -347,7 +347,7 @@ export default function RegistroPago() {
         <div style={{ display: "flex", flexDirection: "column" }}>
           <label>Filtrar por unidad</label>
           <Select
-            options={unidades.map(u => ({ value: u.id_unidad, label: `${u.id_unidad} - ${u.marca} ${u.vehiculo}` }))}
+            options={unidades.map(u => ({ value: u.id_unidad, label: `${u.cve} - ${u.marca} ${u.vehiculo}` }))}
             value={filtroUnidad}
             onChange={setFiltroUnidad}
             isClearable
@@ -392,7 +392,7 @@ export default function RegistroPago() {
         <table className="elegant-table">
           <thead>
             <tr>
-              <th>ID Unidad</th>
+              <th>CVE</th>
               <th>Vehículo</th>
               <th>Modelo</th>
               <th>Fecha Pago</th>
@@ -413,8 +413,8 @@ export default function RegistroPago() {
                 const unidad = unidades.find(u => u.id_unidad === pago.id_unidad) || {};
                 return (
                   <tr key={pago.id_pago}>
-                    <td>{unidad.id_unidad || pago.id_unidad}</td>
-                    <td>{unidad.marca} {unidad.vehiculo}</td>
+                    <td>{unidad.cve || pago.id_unidad}</td>
+                    <td>{unidad.marca} {unidad.vehiculo} {unidad.clase  }</td>
                     <td>{unidad.modelo}</td>
                     <td>{pago.fecha_pago || "-"}</td>
                     <td>{pago.tipo_pago || "-"}</td>

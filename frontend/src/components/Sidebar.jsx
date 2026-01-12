@@ -11,6 +11,8 @@ const Sidebar = () => {
   const [showMantenimientosSubmenu, setShowMantenimientosSubmenu] = useState(false);
   const [showHistorialSubmenu, setShowHistorialSubmenu] = useState(false);
   const [showChoferSubmenu, setShowChoferSubmenu] = useState(false);
+  const [showPanelSubmenu, setShowPanelSubmenu] = useState(false);
+
   const navigate = useNavigate();
   const { pendientes } = useContext(NotificationContext);
   const { alertasPendientes } = useContext(NotificationContext);
@@ -47,7 +49,7 @@ const Sidebar = () => {
         <nav className="sidebar-menu">
 
           {/* === Dashboard === */}
-          {(rol === "admin" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario") && (
             <div className="menu-item">
               <NavLink
                 to="/"
@@ -60,18 +62,12 @@ const Sidebar = () => {
                   style={{ marginLeft: "auto" }}
                 ></i>
               </NavLink>
-              {showDashboardSubmenu && (
-                <div className="submenu">
-                  <NavLink to="/" className={({ isActive }) => (isActive ? "active" : "")}>
-                    <i className="fa fa-bar-chart"></i> Reportes
-                  </NavLink>
-                </div>
-              )}
+
             </div>
           )}
 
           {/* === Solicitudes (admin) === */}
-          {(rol === "admin" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario") && (
             <NavLink to="/admin/solicitudes" className={({ isActive }) => (isActive ? "active" : "")}>
               <i className="fa fa-line-chart"></i> Solicitudes
               {pendientes > 0 && <span className="notification-badge">{pendientes}</span>}
@@ -79,7 +75,7 @@ const Sidebar = () => {
           )}
 
           {/* === Unidades y Usuarios === */}
-          {(rol === "admin" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario") && (
             <>
               <NavLink to="/unidades" className={({ isActive }) => (isActive ? "active" : "")}>
                 <i className="fa fa-car"></i> Unidades
@@ -105,9 +101,19 @@ const Sidebar = () => {
               <NavLink to="/Calendario" className={({ isActive }) => (isActive ? "active" : "")}>
                 <i className="fa-solid fa-clipboard-check"></i> Calendario
               </NavLink>
-              <NavLink to="/usuarios" className={({ isActive }) => (isActive ? "active" : "")}>
+            </>
+     
+          )}
+          {(rol === "Administrador" ) && (
+            <>
+            <NavLink to="/usuarios" className={({ isActive }) => (isActive ? "active" : "")}>
                 <i className="fa fa-users"></i> Usuarios
               </NavLink>
+             </>
+     
+          )}
+        {(rol === "Administrador" || rol === "usuario") && (
+            <>
               <NavLink to="/Empresas" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-file-text"></i> Empresa
               </NavLink>
@@ -119,7 +125,7 @@ const Sidebar = () => {
               {/* === Mantenimientos === */}
               <div className="menu-item">
                 <NavLink
-                  to="#"
+                  to="/reportefallas"
                   className={({ isActive }) => (isActive ? "active" : "")}
                   onClick={() => toggleSubmenu(showMantenimientosSubmenu, setShowMantenimientosSubmenu)}
                 >
@@ -133,10 +139,10 @@ const Sidebar = () => {
                   <div className="submenu">
                     
                     <NavLink to="/mantenimientos_programado" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-gear"></i> Mantenimientos menores progremados
+                      <i className="fa fa-gear"></i> Mantenimientos menores programados
                     </NavLink>
                     <NavLink to="/mayores" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-gear"></i> Mantenimientos mayores progremados
+                      <i className="fa fa-gear"></i> Mantenimientos mayores programados
                     </NavLink>
                     <NavLink to="/fallasmecanicas" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-car"></i> Fallas Mecánicas
@@ -189,8 +195,16 @@ const Sidebar = () => {
             </>
           )}
 
+          {(rol === "Administrador" || rol === "usuario") && (
+            <>
+             </>
+     
+          )}
+
+
+
           {/* === Acciones Chofer (admin también puede ver) === */}
-          {(rol === "Conductor" || rol === "admin" || rol === "usuario") && (
+          {(rol === "Conductor" || rol === "Administrador" || rol === "usuario") && (
             <div className="menu-item">
              <NavLink
               to="/Datoschfer"
@@ -223,31 +237,26 @@ const Sidebar = () => {
 
                 </div>
               )}
-              <NavLink to="/botones" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa-solid fa-clipboard-check"></i> Pruebas
-              </NavLink>
-            
-
             </div>
           )}
           {/* === Acciones Chofer (admin también puede ver) === */}
-          {(rol === "admin" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario") && (
             <div className="menu-item">
              <NavLink
               to="#"
               end
               className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={() => toggleSubmenu(showChoferSubmenu, setShowChoferSubmenu)}
+              onClick={() => toggleSubmenu(showPanelSubmenu, setShowPanelSubmenu)}
             >
               <i className="fa fa-folder-open"></i> Panel de configuracion
               <i
-                className={`fa submenu-toggle fa-chevron-${showChoferSubmenu ? "down" : "right"}`}
+                className={`fa submenu-toggle fa-chevron-${showPanelSubmenu ? "down" : "right"}`}
                 style={{ marginLeft: "auto" }}
               ></i>
 
             </NavLink>
 
-              {showChoferSubmenu && (
+              {showPanelSubmenu && (
                 <div className="submenu">
                   <NavLink to="/tipos_mantenimientos" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-wrench"></i> Tipos de mantenimientos
@@ -255,15 +264,13 @@ const Sidebar = () => {
                     <NavLink to="/frecuencia_mantenimiento" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-history"></i> Frecuencia por marca
                     </NavLink>
-                    <NavLink to="/lugaresrep " className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-history"></i> Lugares reparacion
-                    </NavLink>
-                    <NavLink to="/marcapieza" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-history"></i> Marcas Piezas
-                    </NavLink>
                     <NavLink to="/piezas" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-history"></i> Piezas
+                      <i className="fa fa-history"></i> Tipos de fallas
                     </NavLink>
+                    <NavLink to="/botones" className={({ isActive }) => (isActive ? "active" : "")}>
+                    <i className="fa-solid fa-clipboard-check"></i> Pruebas
+                  </NavLink>
+            
 
                 </div>
               )}

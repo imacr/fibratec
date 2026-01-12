@@ -68,7 +68,7 @@ export default function Historiales() {
             {currentItems.map((h, i) => (
               <tr key={i}>
                 <td style={{ display: "none" }}>{h.id_historial}</td>
-                <td>{h.id_unidad}</td>
+                <td>{h.cve}</td>
                 <td>{h.vehiculo_modelo}</td>
                 <td>{h.tipo_pago}</td>
                 <td>{h.monto}</td>
@@ -82,7 +82,7 @@ export default function Historiales() {
                       className="btn btn-outline-danger btn-sm"
                       title="Ver factura"
                     >
-                      Abrir PDF
+                      Abrir comprobante
                     </button>
                   ) : "-"}
                 </td>

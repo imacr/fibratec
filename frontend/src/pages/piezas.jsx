@@ -111,9 +111,9 @@ export default function Piezas() {
 
   return (
     <div className="unidades-container">
-      <h1>Piezas</h1>
+      <h1>Tipo de falla</h1>
 
-      <button className=" btn-registrar-garantia" onClick={() => setShowRegisterModal(true)}>Registrar Nueva Pieza</button>
+      <button className=" btn-registrar-garantia" onClick={() => setShowRegisterModal(true)}>Registrar tipo de falla</button>
 
       {/* Tabla */}
       <div className="table-wrapper">
@@ -142,7 +142,7 @@ export default function Piezas() {
       {/* Modal Registro */}
       {showRegisterModal && (
         <Modal onClose={() => setShowRegisterModal(false)}>
-          <h2>Registrar Pieza</h2>
+          <h2>Registrar tipo de falla</h2>
           <div className="form-group">
             <label>Nombre</label>
             <input name="nombre_pieza" value={form.nombre_pieza || ""} onChange={handleChange} />
@@ -161,7 +161,7 @@ export default function Piezas() {
       {/* Modal Edición */}
       {edit && (
         <Modal onClose={() => setEdit(null)}>
-          <h2>Editar Pieza {edit.id_pieza}</h2>
+          <h2>Editar tipo falla {edit.id_pieza}</h2>
           <div className="form-group">
             <label>Nombre</label>
             <input name="nombre_pieza" value={form.nombre_pieza || ""} onChange={handleChange} />

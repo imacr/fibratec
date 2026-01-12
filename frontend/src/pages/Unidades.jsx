@@ -3,8 +3,9 @@ import React, { useEffect, useState } from 'react';
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import Modal from '../components/Modal'; // Ajusta la ruta según tu estructura
-import '../../src/App.css';
-import './Unidades.css';
+import ModalFile from "../components/ModalFile";
+
+import "./Unidades.css"; // Tus estilos
 import seces from '../assets/image.png';
 import { BASE_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
@@ -32,7 +33,12 @@ const Unidades = () => {
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState('');
   const [comprobantePago, setComprobantePago] = useState(null);
   const [tarjetaCirculacion, setTarjetaCirculacion] = useState(null);
-  const [modalMode, setModalMode] = useState("add"); // MAL
+  const [modalMode, setModalMode] = useState(null);
+    const [historial, setHistorial] = useState([]);
+  const [fileModalUrl, setFileModalUrl] = useState(null);
+  const [search, setSearch] = useState("");
+// "edit" | "add" | "details"
+
 
 // "add", "edit", "details"
 
@@ -184,7 +190,7 @@ const handleUpdateUnidad = async (e) => {
     // Inicializar mas_datos si no existe
     // =============================
     const masDatos = {
-      clase_tipo: "",
+      clase: "",
       motor: "",
       transmision: "",
       combustible: "",
@@ -202,7 +208,7 @@ const handleUpdateUnidad = async (e) => {
     // Campos directos de unidadToEdit
     // =============================
     const camposDirectos = [
-  "marca","cve","version", "tipo", "modelo", "fecha_adquisicion",
+  "marca","cve","version", "tipo", "modelo", "fecha_adquisicion","clase","año",
   "valor_factura", "kilometraje_actual", "id_empresa", "id_sucursal",
   "id_combustible", // ← AGREGADO
   "niv", "litros_actuales", "tolerancia", "capacidad_tanque", "kilometraje_por_litro"
@@ -217,7 +223,7 @@ const handleUpdateUnidad = async (e) => {
     // Campos dentro de mas_datos
     // =============================
     const camposMasDatos = [
-  "clase_tipo", "motor", "transmision",
+   "motor", "transmision",
   "color", "propietario", "compra_arrendado", 
   "telefono_gps", "sim_gps", "uid",
   "litros_actuales", "tolerancia", "capacidad_tanque", "kilometraje_por_litro", "es_utilitario" // <-- agregar aquí
@@ -516,11 +522,14 @@ const handleMasDatosChange = (field, value) => {
               ))}
             </select>
           </label>
-        <button  className="btn-open-modal btn-registrar-garantia" onClick={() => { setShowModal(true);
-            setUnidadToEdit(null);  // Para abrir en modo "Agregar"
-            setNuevaUnidad({});     // Inicializa campos vacíos para agregar
-            setModalData(null);     // Limpia detalles
-          }} >
+        <button  className="btn-open-modal btn-registrar-garantia" onClick={() => {
+  setModalMode("add");
+  setNuevaUnidad({});
+  setUnidadToEdit(null);
+  setModalData(null);
+  setShowModal(true);
+}}
+ >
           Agregar Nueva Unidad
         </button>
       </div>
@@ -530,7 +539,7 @@ const handleMasDatosChange = (field, value) => {
         <table className="elegant-table">
           <thead>
             <tr>
-              <th textAlign="center">ID</th>
+              <th textAlign="center">CVE</th>
               <th>Chofer Asignado</th>
               <th>Marca</th>
               <th>Vehículo</th>
@@ -539,7 +548,7 @@ const handleMasDatosChange = (field, value) => {
               <th>Placa</th>
               <th>Fecha Adquisición</th>
               <th>Vencimiento Tarjeta</th>
-              <th>Estado</th>
+              <th>Factura</th>
               <th>Engomado</th>
               <th>Acciones</th>
             </tr>
@@ -555,13 +564,23 @@ const handleMasDatosChange = (field, value) => {
                 <td>{u.niv}</td>
                 <td>{u.placa}</td>
                 <td>{u.fecha_adquisicion}</td>
+                
                 <td>{u.fecha_vencimiento_tarjeta}</td>
-                <td>{u.estado_tarjeta}</td>
+                <td> {u.url_factura ? (
+                          <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${BASE_URL}/${u.url_factura}`)}>Ver</button>
+                        ) : "N/A"}</td>
                 <td>{u.engomado}</td>
                 <td>
                    <div className="actions-container">
                     {/* ACTUALIZAR (Verde) */}
-                    <button onClick={() => { setUnidadToEdit(u); setShowModal(true); }}>
+                    <button onClick={() => {
+                                setModalMode("edit");
+                                setUnidadToEdit(u);
+                                setNuevaUnidad(null);
+                                setModalData(null);
+                                setShowModal(true);
+                              }}
+>
                     <i className="fa-solid fa-pen-to-square icon-edit"></i>
                     </button>
 
@@ -571,7 +590,14 @@ const handleMasDatosChange = (field, value) => {
                     </button>
 
                     {/* DETALLES/MÁS DATOS (Azul) */}
-                    <button onClick={() => { setModalData(u.mas_datos); setShowModal(true); }}>
+                    <button onClick={() => {
+                        setModalMode("details");
+                        setModalData(u.mas_datos);
+                        setUnidadToEdit(null);
+                        setNuevaUnidad(null);
+                        setShowModal(true);
+                      }}
+                      >
                     {/* Usé 'icon-details' para la acción de ver más */}
                     <i className="fa-solid fa-plus-minus icon-details"></i>
                     </button>
@@ -588,18 +614,26 @@ const handleMasDatosChange = (field, value) => {
         {currentUnidades.map(u => (
           <div key={u.id_unidad} className="unidad-card">
             <h3>{u.vehiculo} ({u.marca})</h3>
-            <p><b>ID:</b> {u.id_unidad}</p>
+            <p><b>CVE:</b> {u.cve}</p>
             <p><b>Modelo:</b> {u.modelo}</p>
             <p><b>NIV:</b> {u.niv}</p>
             <p><b>Placa:</b> {u.placa}</p>
             <p><b>Fecha Adquisición:</b> {u.fecha_adquisicion}</p>
             <p><b>Vencimiento Tarjeta:</b> {u.fecha_vencimiento_tarjeta}</p>
-            <p><b>Estado:</b> {u.estado_tarjeta}</p>
+            <p><b>Factura:</b> {u.url_factura ? (
+                          <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${BASE_URL}/${u.url_factura}`)}>Ver</button>
+                        ) : "N/A"}</p>
             <p><b>Engomado:</b> {u.engomado}</p>
             <p><b>Chofer:</b> {u.chofer_asignado}</p>
             <div className="actions-container">
-                     {/* ACTUALIZAR (Verde) */}
-                    <button onClick={() => { setUnidadToEdit(u); setShowModal(true); }}>
+                     <button onClick={() => {
+                                setModalMode("edit");
+                                setUnidadToEdit(u);
+                                setNuevaUnidad(null);
+                                setModalData(null);
+                                setShowModal(true);
+                              }}
+>
                     <i className="fa-solid fa-pen-to-square icon-edit"></i>
                     </button>
 
@@ -610,9 +644,15 @@ const handleMasDatosChange = (field, value) => {
 
 
                     {/* DETALLES/MÁS DATOS (Azul) */}
-                    <button onClick={() => { setModalData(u.mas_datos); setShowModal(true); }}>
-                    {/* Usé 'icon-details' para la acción de ver más */}
-                    <i className="fa-solid fa-plus-minus icon-details"></i>
+                   <button onClick={() => {
+                        setModalMode("details");
+                        setModalData(u.mas_datos);
+                        setUnidadToEdit(null);
+                        setNuevaUnidad(null);
+                        setShowModal(true);
+                      }}
+                      >
+                      <i className="fa-solid fa-plus-minus icon-details"></i>
                     </button>
                 </div>
           </div>
@@ -628,10 +668,15 @@ const handleMasDatosChange = (field, value) => {
 
 
 
-  {showModal && (
-    <div className='modal-container'>
-    <Modal onClose={() => { setShowModal(false); setUnidadToEdit(null); setNuevaUnidad(null); }}>
-        {unidadToEdit ? (
+{showModal && (
+  <div className='modal-container'>
+    <Modal onClose={() => { 
+      setShowModal(false); 
+      setUnidadToEdit(null); 
+      setNuevaUnidad(null); 
+      setModalData(null); // Asegúrate de limpiar el estado aquí también
+    }}>
+      {unidadToEdit ? (
           <>
             <h2 style={{ textAlign: 'center' }}>Editar Unidad</h2>
 
@@ -706,9 +751,18 @@ const handleMasDatosChange = (field, value) => {
           />
         </div>
         <div className="form-group">
+          <label>Clase</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.clase || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, clase: e.target.value})} 
+            required 
+          />
+        </div>
+        <div className="form-group">
           <label>Modelo</label>
           <input 
-            type="number" 
+            type="text" 
             value={unidadToEdit.modelo || ""} 
             onChange={e => setUnidadToEdit({...unidadToEdit, modelo: e.target.value})}
             required 
@@ -720,6 +774,14 @@ const handleMasDatosChange = (field, value) => {
             type="text" 
             value={unidadToEdit.tipo || ""} 
             onChange={e => setUnidadToEdit({...unidadToEdit, tipo: e.target.value})} 
+          />
+        </div>
+        <div className="form-group">
+          <label>Año</label>
+          <input 
+            type="text" 
+            value={unidadToEdit.año || ""} 
+            onChange={e => setUnidadToEdit({...unidadToEdit, año: e.target.value})} 
           />
         </div>
       </div>
@@ -810,7 +872,7 @@ const handleMasDatosChange = (field, value) => {
     </div>
     <div className="form-group">
       <label>Factura (PDF)</label>
-      <input type="file" accept="application/pdf" onChange={e => setPdfFactura(e.target.files[0])} />
+      <input type="file" accept="image/*,application/pdf" onChange={e => setPdfFactura(e.target.files[0])} />
     </div>
     <div className="form-group">
       <label>Valor Factura</label>
@@ -1366,22 +1428,22 @@ const handleMasDatosChange = (field, value) => {
           />
         </div>
         <div className="form-group">
-          <label>Comprobante del Pago (PDF)</label>
+          <label>Comprobante del Pago (imagen o pdf)</label>
           <input type="file" accept="image/*,application/pdf" onChange={(e) => setComprobantePago(e.target.files[0])} />
         </div>
         <div className="form-group">
-          <label>PDF Placa Frontal</label>
+          <label>Placa Frontal(imagen o pdf)</label>
           <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfFrontal(e.target.files[0])} />
         </div>
       </div>
 
       <div className="form-row">
         <div className="form-group">
-          <label>PDF Placa Trasera</label>
+          <label>Placa Trasera (imagen o pdf)</label>
           <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfTrasero(e.target.files[0])} />
         </div>
         <div className="form-group">
-          <label>Tarjeta de Circulación (PDF)</label>
+          <label>Tarjeta de Circulación (imagen o pdf)</label>
           <input type="file" accept="image/*,application/pdf" onChange={(e) => setTarjetaCirculacion(e.target.files[0])} />
         </div>
       </div>
@@ -1415,7 +1477,9 @@ const handleMasDatosChange = (field, value) => {
       </Modal>
     </div>
   )}
-   
+
+{fileModalUrl && <ModalFile url={fileModalUrl} onClose={() => setFileModalUrl(null)} />}
+
     </div>
   );
 };

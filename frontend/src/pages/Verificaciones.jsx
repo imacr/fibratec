@@ -169,31 +169,49 @@ const checkUnidadLocal = async () => {
     );
 
     // Bloqueo por holograma 00 vigente
-    const holograma00 = verificaciones.find(v =>
-      String(v.id_unidad) === String(idUnidad) &&
-      v.holograma === "00" &&
-      v.proxima_verificacion &&
-      new Date(v.proxima_verificacion) > new Date()
-    );
+    const hoy = new Date();
 
-    if (holograma00) {
-      setUnidadExiste(true);
-      setVerificacionExistente(holograma00);
-      setHolograma("00");
-      setFormDisabled(true);
-      setPeriodoSeleccionado("1");
-      setFechaSugerida(new Date(holograma00.proxima_verificacion).toISOString().split("T")[0]);
-      setMostrarFormulario(true);
+  // Bloqueo por holograma 00 vigente (solo si faltan MÁS de 2 meses)
+  const holograma00 = verificaciones.find(v => {
+    if (
+      String(v.id_unidad) !== String(idUnidad) ||
+      v.holograma !== "00" ||
+      !v.proxima_verificacion
+    ) return false;
 
-      Swal.fire({
-        icon: "info",
-        title: "Holograma 00 vigente",
-        text: `No se puede registrar un nuevo periodo. Holograma 00 vigente hasta ${new Date(holograma00.proxima_verificacion).toLocaleDateString()}.`,
-        timer: 4000,
-        showConfirmButton: false
-      });
-      return;
-    }
+    const proxima = new Date(v.proxima_verificacion);
+
+    const dosMesesAntes = new Date(proxima);
+    dosMesesAntes.setMonth(dosMesesAntes.getMonth() - 2);
+
+    // Bloquear solo si aún no se entra en el rango permitido
+    return hoy < dosMesesAntes;
+  });
+
+  if (holograma00) {
+    const proxima = new Date(holograma00.proxima_verificacion);
+    const dosMesesAntes = new Date(proxima);
+    dosMesesAntes.setMonth(dosMesesAntes.getMonth() - 2);
+
+    setUnidadExiste(true);
+    setVerificacionExistente(holograma00);
+    setHolograma("00");
+    setFormDisabled(true);
+    setPeriodoSeleccionado("1");
+    setFechaSugerida(proxima.toISOString().split("T")[0]);
+    setMostrarFormulario(true);
+
+    Swal.fire({
+      icon: "info",
+      title: "Registro aún no disponible Holograma 00",
+      text: `Podrá registrar la verificación a partir del ${dosMesesAntes.toLocaleDateString()}`,
+      timer: 4000,
+      showConfirmButton: false
+    });
+
+    return;
+  }
+
 
   // NUEVA VALIDACIÓN: si no tiene placa
   if (!data.placa) {
@@ -399,7 +417,7 @@ const checkUnidadLocal = async () => {
               <Select
                 options={unidades.map(u => ({
                   value: u.id_unidad,
-                  label: `${u.id_unidad} - ${u.marca} ${u.vehiculo} ${u.modelo}`
+                  label: `${u.cve} - ${u.marca} ${u.vehiculo} ${u.modelo}`
                 }))}
                 value={
                   idUnidad
@@ -408,7 +426,7 @@ const checkUnidadLocal = async () => {
                         label: (() => {
                           const selected = unidades.find(u => u.id_unidad === idUnidad);
                           return selected
-                            ? `${selected.id_unidad} - ${selected.marca} ${selected.vehiculo} ${selected.modelo}`
+                            ? `${selected.cve} - ${selected.marca} ${selected.vehiculo} ${selected.modelo}`
                             : idUnidad;
                         })(),
                       }
@@ -479,7 +497,17 @@ const checkUnidadLocal = async () => {
 
               <input type="text" placeholder="Holograma" value={holograma} onChange={(e) => setHolograma(e.target.value)} />
               <input type="text" placeholder="Folio" value={folio} onChange={(e) => setFolio(e.target.value)} />
-              <input type="file" accept="application/pdf" onChange={handleFileChange} required />
+              <div>
+                <label htmlFor="talon_verificacion">Talón de verificación</label> <br />
+                <input
+                  id="talon_verificacion"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  required
+                />
+              </div>
+
 
               <div className="d-flex gap-2">
                 <button type="submit" className="btn btn-danger fw-bold" disabled={formDisabled}>📄 Registrar Verificación</button>
@@ -496,7 +524,7 @@ const checkUnidadLocal = async () => {
         <table className="elegant-table">
           <thead className="table-dark text-center">
             <tr>
-              <th className="ocultar">ID</th><th>ID</th><th>Unidad</th><th>Placa</th><th>Modelo</th><th>Última</th>
+              <th className="ocultar">ID</th><th>CVE</th><th>Unidad</th><th>Placa</th><th>Última</th>
               <th className="ocultar">Periodo 1</th><th>1 periodo realizado</th><th>Talon 1 verif.</th>
               <th className="ocultar">Periodo 2</th><th>2 periodo realizado</th><th>Talon 2 verif.</th>
               <th>Holograma</th><th>Folio</th><th>Engomado</th>
@@ -512,10 +540,9 @@ const checkUnidadLocal = async () => {
                 v.estado_verificacion === "PENDIENTE" ? "table-warning" : ""
               } >
                 <td className="ocultar">{v.id_verificacion}</td>
-                <td>{v.id_unidad}</td>
-                <td>{v.marca} {v.vehiculo}</td>
+                <td>{v.cve}</td>
+                <td>{v.marca} {v.version} {v.modelo}</td>
                 <td>{v.placa}</td>
-                <td>{v.modelo}</td>
                 <td>{v.ultima_verificacion}</td>
                 <td className="ocultar" >{v.periodo_1}</td>
                 <td>{v.periodo_1_real}</td>
@@ -570,8 +597,8 @@ const checkUnidadLocal = async () => {
       <h3>Unidad: {v.marca} {v.vehiculo}</h3>
       <p><b>ID Verificación:</b> {v.id_verificacion}</p>
       <p><b>ID Unidad:</b> {v.id_unidad}</p>
-      <p><b>Placa:</b> {v.placa}</p>
       <p><b>Modelo:</b> {v.modelo}</p>
+      <p><b>Placa:</b> {v.placa}</p>
       <p><b>Última Verificación:</b> {v.ultima_verificacion}</p>
       <p><b>1° Periodo Realizado:</b> {v.periodo_1_real}</p>
       {v.url_verificacion_1 && (

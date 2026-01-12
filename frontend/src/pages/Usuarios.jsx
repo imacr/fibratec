@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import './Unidades.css'; 
 import RegistrarUsuario from "./RegistrarUsuario";
 import { API_URL } from "../config"; 
+import Swal from "sweetalert2";
+
 
 const Usuarios = () => {
   const [usuarios, setUsuarios] = useState([]);

@@ -116,7 +116,7 @@ export default function HistorialVerificaciones() {
                 <td>{item.id_verificacion}</td>
                 <td>
                   {item.unidad
-                    ? `${item.unidad.nombre} (ID: ${item.unidad.id_unidad}) / ${item.unidad.placa || "Sin placa"}`
+                    ? ` ${item.unidad.cve} ${item.unidad.nombre}  / ${item.unidad.placa || "Sin placa"}`
                     : "Sin unidad"}
                 </td>
                 <td>{item.holograma || "—"}</td>

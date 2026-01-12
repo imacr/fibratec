@@ -173,7 +173,7 @@ export default function Alertas() {
                   <p className="alerta-desc">{a.descripcion}</p>
 
                   <div className="alerta-footer">
-                    <span>Unidad: {a.id_unidad}</span>
+                    <span>Unidad: {a.cve_unidad}</span>
                     <span>
                       Generada:{" "}
                       {new Date(a.fecha_generada).toLocaleDateString()}

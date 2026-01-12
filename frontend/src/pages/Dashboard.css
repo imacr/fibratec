@@ -51,7 +51,6 @@
   left: 0;
   width: 100%;
   height: 5px;
-  background: linear-gradient(to right, #ff3c3c, #ff9f1c);
 }
 
 .dashboard-container .total-card:hover {
@@ -71,11 +70,12 @@
   font-weight: 700;
 }
 
-.dashboard-container .total-unidades::before { background: #06d6a0; }   /* verde */
-.dashboard-container .total-polizas::before { background: #e63946; }    /* rojo */
-.dashboard-container .total-ver-activa::before { background: #1b9aaa; } /* azul */
-.dashboard-container .total-ver-vencida::before { background: #f94144; }/* rojo oscuro */
-.dashboard-container .total-sin-ver::before { background: #adb5bd; }    /* gris */
+/* Colores por tipo */
+.dashboard-container .total-unidades::before { background: #06d6a0; }
+.dashboard-container .total-polizas::before { background: #e63946; }
+.dashboard-container .total-ver-activa::before { background: #1b9aaa; }
+.dashboard-container .total-ver-vencida::before { background: #f94144; }
+.dashboard-container .total-sin-ver::before { background: #adb5bd; }
 
 /* -------------------- */
 /* Gráficas */
@@ -96,7 +96,12 @@
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+}
+
+.dashboard-container .grafica-card h5 {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #f8f9fa;
 }
 
 .dashboard-container .grafica-wrapper {
@@ -143,10 +148,37 @@
   transform: translateY(-5px);
 }
 
-.dashboard-container .estado-atrasada { color: #e63946; font-weight: 700; }
-.dashboard-container .estado-en-tiempo { color: #06d6a0; font-weight: 700; }
-.dashboard-container .estado-pendiente { color: #ffb703; font-weight: 700; }
-.dashboard-container .estado-otro { color: #adb5bd; font-weight: 700; }
+.dashboard-container .sucursal-card h6 {
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.dashboard-container .sucursal-card p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+
+/* Estados */
+.dashboard-container .estado-atrasada {
+  color: #e63946;
+  font-weight: 700;
+}
+
+.dashboard-container .estado-en-tiempo {
+  color: #06d6a0;
+  font-weight: 700;
+}
+
+.dashboard-container .estado-pendiente {
+  color: #ffb703;
+  font-weight: 700;
+}
+
+.dashboard-container .estado-otro {
+  color: #adb5bd;
+  font-weight: 700;
+}
 
 /* -------------------- */
 /* Unidades sin Póliza */
@@ -180,6 +212,7 @@
 
 /* -------------------- */
 /* Tabla */
+/* -------------------- */
 .dashboard-container .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;
@@ -209,6 +242,7 @@
 
 /* -------------------- */
 /* Responsividad */
+/* -------------------- */
 @media (max-width: 768px) {
   .dashboard-container .totales-row,
   .dashboard-container .graficas-row,
@@ -217,5 +251,3 @@
     gap: 20px;
   }
 }
-
-

@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { API_URL } from "../config";
 
-export default function Mantenimientos({ registroPrellenado }) {
+export default function Mantenimientos({ registroPrellenado,onSuccess }) {
   const [tipos, setTipos] = useState([]);
+  const [unidades, setUnidades] = useState([]);
+
+
   const [form, setForm] = useState({
     id_unidad: "",
     tipo_mantenimiento: "",
@@ -17,6 +20,13 @@ export default function Mantenimientos({ registroPrellenado }) {
     observaciones: "",
     url_comprobante: null,
   });
+
+  useEffect(() => {
+  fetch(`${API_URL}/unidades`)
+    .then(res => res.json())
+    .then(data => setUnidades(data))
+    .catch(err => console.error("Error cargando unidades:", err));
+}, []);
 
   useEffect(() => {
     fetch(`${API_URL}/tipos_mantenimiento`)
@@ -45,50 +55,55 @@ export default function Mantenimientos({ registroPrellenado }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.tipo_mantenimiento || !form.id_unidad || !form.fecha_realizacion) {
-      Swal.fire("Campos incompletos", "Llena los obligatorios", "warning");
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    const formData = new FormData();
-    Object.keys(form).forEach((key) => {
-      if (form[key] !== null && form[key] !== undefined) {
+  if (!form.tipo_mantenimiento || !form.id_unidad || !form.fecha_realizacion) {
+    Swal.fire("Campos incompletos", "Llena los obligatorios", "warning");
+    return;
+  }
+
+  const kilometrajeNum = Number(form.kilometraje);
+
+  if (isNaN(kilometrajeNum)) {
+    Swal.fire("Error", "Kilometraje inválido", "error");
+    return;
+  }
+
+  const formData = new FormData();
+
+  Object.keys(form).forEach((key) => {
+    if (form[key] !== null && form[key] !== undefined) {
+      if (key === "kilometraje") {
+        formData.append(key, kilometrajeNum); // ← número
+      } else {
         formData.append(key, form[key]);
       }
+    }
+  });
+
+  try {
+    const res = await fetch(`${API_URL}/mantenimientos`, {
+      method: "POST",
+      body: formData,
     });
 
-    try {
-      const res = await fetch(`${API_URL}/mantenimientos`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        Swal.fire("Éxito", "Mantenimiento registrado correctamente", "success");
-        setForm({
-          id_unidad: "",
-          tipo_mantenimiento: "",
-          descripcion: "",
-          fecha_realizacion: "",
-          kilometraje: "",
-          realizado_por: "",
-          empresa_garantia: "",
-          cobertura_garantia: "",
-          costo: "",
-          observaciones: "",
-          url_comprobante: null,
+    if (res.ok) {
+      Swal.fire("Éxito", "Mantenimiento registrado correctamente", "success")
+        .then(() => {
+          if (onSuccess) onSuccess(); // 🔴 CIERRA MODAL Y ACTUALIZA TABLA
         });
-      } else {
-        const errData = await res.json();
-        Swal.fire("Error", errData.error || "No se pudo registrar", "error");
-      }
-    } catch (error) {
-      console.error(error);
-      Swal.fire("Error", "Error de conexión con el servidor", "error");
+
+
+    } else {
+      const errData = await res.json();
+      Swal.fire("Error", errData.error || "No se pudo registrar", "error");
     }
-  };
+  } catch (error) {
+    Swal.fire("Error", "Error de conexión con el servidor", "error");
+  }
+};
+
 
   return (
     <div className="container mt-4">
@@ -99,15 +114,24 @@ export default function Mantenimientos({ registroPrellenado }) {
         <div className="row">
           <div className="col-md-4 mb-3">
             <label>Unidad (ID)</label>
-            <input
-              type="number"
-              name="id_unidad"
-              value={form.id_unidad}
-              onChange={handleChange}
-              placeholder="Ej: 101"
-              className="form-control"
-              required
-            />
+            <div className="col-md-4 mb-3">
+  <label>Unidad</label>
+  <select
+    name="id_unidad"
+    value={form.id_unidad}
+    onChange={handleChange}
+    className="form-control"
+    required
+  >
+    <option value="">Seleccione una unidad</option>
+    {unidades.map((u) => (
+      <option key={u.id_unidad} value={u.id_unidad}>
+        {u.cve} - {u.marca} - {u.version}
+      </option>
+    ))}
+  </select>
+</div>
+
           </div>
           <div className="col-md-4 mb-3">
             <label>Tipo de Mantenimiento</label>

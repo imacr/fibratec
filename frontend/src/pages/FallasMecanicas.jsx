@@ -106,13 +106,16 @@ const FallasMecanicas = () => {
     setShowModal(true);
   };
 
-  const agregarOActualizarFalla = (fallaActualizada) => {
-    setFallas(prev =>
-      prev.some(f => f.id_falla === fallaActualizada.id_falla)
-        ? prev.map(f => f.id_falla === fallaActualizada.id_falla ? fallaActualizada : f)
-        : [fallaActualizada, ...prev]
-    );
-  };
+const agregarOActualizarFalla = (fallaActualizada) => {
+  setFallas(prev =>
+    prev.map(f =>
+      f.id_falla === fallaActualizada.id_falla
+        ? { ...f, ...fallaActualizada }
+        : f
+    )
+  );
+};
+
 
   const handleSubmitFalla = async (e) => {
     e.preventDefault();
@@ -173,7 +176,7 @@ const FallasMecanicas = () => {
 
   return (
     <div className="garantias-container">
-      <h1><i className="fa-solid fa-wrench"></i> Fallas Mecánicos</h1>
+      <h1><i className="fa-solid fa-wrench"></i> Fallas Mecánicas</h1>
 
       <div className="pagination-controls">
         <label>
@@ -189,12 +192,10 @@ const FallasMecanicas = () => {
         <table className="elegant-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th>ID de la solicitud</th>
               <th>Unidad</th>
-              <th>Pieza</th>
-              <th>Marca</th>
+              <th>Falla reportada:</th>
               <th>Tipo Servicio</th>
-              <th>Lugar Reparación</th>
               <th>Proveedor</th>
               <th>Tipo Pago</th>
               <th>Costo</th>
@@ -206,12 +207,10 @@ const FallasMecanicas = () => {
           <tbody>
             {currentFallas.map(f => (
               <tr key={f.id_falla}>
-                <td>{f.id_falla}</td>
+                <td>{f.solicitud || 'Realizado por el admin'}</td>
                 <td>{f.unidad}</td>
                 <td>{f.pieza}</td>
-                <td>{f.marca}</td>
                 <td>{f.tipo_servicio}</td>
-                <td>{f.lugar_reparacion}</td>
                 <td>{f.proveedor}</td>
                 <td>{f.tipo_pago}</td>
                 <td>${f.costo?.toLocaleString()}</td>
@@ -235,8 +234,8 @@ const FallasMecanicas = () => {
   ) : (
     currentFallas.map(f => (
       <div key={f.id_falla} className="unidad-card">
-        <h3>{f.unidad} ({f.marca})</h3>
-        <p><b>Pieza:</b> {f.pieza}</p>
+        <h3>{f.unidad} ({f.solicitud})</h3>
+        <p><b>Falla reportada:</b> {f.pieza}</p>
         <p><b>Tipo Servicio:</b> {f.tipo_servicio}</p>
         <p><b>Lugar Reparación:</b> {f.lugar_reparacion}</p>
         <p><b>Proveedor:</b> {f.proveedor}</p>
@@ -291,11 +290,33 @@ const FallasMecanicas = () => {
                   onChange={e => setFormFalla(prev => ({ ...prev, id_unidad: e.target.value }))}
                 >
                   <option value="">Seleccione una unidad</option>
-                  {unidades.map(u => <option key={u.id_unidad} value={u.id_unidad}>{u.id_unidad} - {u.vehiculo} ({u.marca} {u.modelo})</option>)}
+                  {unidades.map(u => <option key={u.id_unidad} value={u.id_unidad}>{u.cve} - {u.vehiculo} ({u.marca} {u.modelo})</option>)}
                 </select>
               </div>
+              
+<div className="form-group">
+  <label>Tipo de servicio:</label>
+  <select
+    name="tipo_servicio"
+    value={formFalla.tipo_servicio}
+    onChange={e =>
+      setFormFalla(prev => ({
+        ...prev,
+        tipo_servicio: e.target.value
+      }))
+    }
+    required
+  >
+    <option value="">Selecciona una opción</option>
+    <option value="CORRECTIVO">Correctivo</option>
+    <option value="PREVENTIVO">Preventivo</option>
+    <option value="TALACHA">Talacha</option>
+    <option value="OTROS">Otros</option>
+  </select>
+</div>
+
               <div className="form-group">
-                <label>Pieza:</label>
+                <label>Falla reportada:</label>
                 <select
                   name="id_pieza"
                   value={formFalla.id_pieza || ""}
@@ -307,31 +328,6 @@ const FallasMecanicas = () => {
               </div>
             </div>
             
-            <div className="form-row">
-              <div className="form-group">
-                <label>Marca:</label>
-                <select
-                  name="id_marca"
-                  value={formFalla.id_marca || ""}
-                  onChange={e => setFormFalla(prev => ({ ...prev, id_marca: e.target.value }))}
-                >
-                  <option value="">Seleccione una marca</option>
-                  {marcas.map(m => <option key={m.id_marca} value={m.id_marca}>{m.nombre_marca}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Lugar Reparación:</label>
-                <select
-                  name="id_lugar"
-                  value={formFalla.id_lugar}
-                  onChange={e => setFormFalla(prev => ({ ...prev, id_lugar: e.target.value }))}
-                  required
-                >
-                  <option value="">Selecciona un lugar</option>
-                  {lugares.map(l => <option key={l.id_lugar} value={l.id_lugar}>{l.nombre_lugar}</option>)}
-                </select>
-              </div>
-            </div>
 
             <div className="form-row">
               <div className="form-group">
@@ -360,10 +356,6 @@ const FallasMecanicas = () => {
                 <label>Costo:</label>
                 <input type="number" name="costo" value={formFalla.costo} onChange={e => setFormFalla(prev => ({ ...prev, costo: e.target.value }))} required />
               </div>
-              <div className="form-group">
-                <label>Tiempo de Uso Pieza:</label>
-                <input name="tiempo_uso_pieza" value={formFalla.tiempo_uso_pieza} onChange={e => setFormFalla(prev => ({ ...prev, tiempo_uso_pieza: e.target.value }))} />
-              </div>
             </div>
 
             <div className="form-row">
@@ -371,17 +363,11 @@ const FallasMecanicas = () => {
                 <label>Observaciones:</label>
                 <textarea name="observaciones" value={formFalla.observaciones} onChange={e => setFormFalla(prev => ({ ...prev, observaciones: e.target.value }))} />
               </div>
-              <div className="form-group">
-                <label>
-                  Aplica Póliza:
-                  <input type="checkbox" name="aplica_poliza" checked={formFalla.aplica_poliza} onChange={e => setFormFalla(prev => ({ ...prev, aplica_poliza: e.target.checked }))} />
-                </label>
-              </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label>Comprobante (PDF):</label>
+                <label>Comprobante:</label>
                 <input type="file" name="comprobante" accept="application/pdf" onChange={e => setFormFalla(prev => ({ ...prev, comprobanteFile: e.target.files[0] || null }))} />
               </div>
             </div>

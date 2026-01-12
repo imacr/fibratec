@@ -69,11 +69,12 @@ const Header = ({ onLogout, toggleSidebar, onChangePassword }) => {
                 className="dropdown-item"
                 onClick={() => {
                   setShowMenu(false);
-                  onChangePassword();
+                  navigate("/Cambiarcontra");
                 }}
               >
                 <i className="fa fa-key" /> Cambiar contraseña
               </button>
+
 
               <button
                 className="dropdown-item"

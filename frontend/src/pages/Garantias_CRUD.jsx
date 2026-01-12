@@ -219,25 +219,127 @@ const Crudgarantias = ({ onClose, onCreate, garantia }) => {
 
       {(verificacion && (!verificacion.existe || verificacion.puede_renovar)) || garantia ? (
         <form onSubmit={handleSubmit} className="modal-form">
-          <input name="aseguradora" placeholder="Aseguradora" value={formData.aseguradora} onChange={handleChange} required />
-          <input name="tipo_garantia" placeholder="Tipo Garantía" value={formData.tipo_garantia} onChange={handleChange} required />
-          <input name="no_poliza" placeholder="Número Póliza" value={formData.no_poliza} onChange={handleChange} required />
-          <input type="number" name="suma_asegurada" placeholder="Suma Asegurada" value={formData.suma_asegurada} onChange={handleChange} required />
-          <input type="date" name="inicio_vigencia" value={formData.inicio_vigencia} onChange={handleChange} required />
-          <input type="number" name="anos_vigencia" value={formData.anos_vigencia} min={1} onChange={handleChange} />
-          <input type="date" name="vigencia" value={formData.vigencia} readOnly />
-          <input type="number" name="prima" placeholder="Prima" value={formData.prima} onChange={handleChange} required />
 
-          {/* Nuevos campos de teléfono */}
-          <input name="telefono_fijo" placeholder="Teléfono fijo" value={formData.telefono_fijo} onChange={handleChange} />
-          <input name="telefono_celular" placeholder="Teléfono celular" value={formData.telefono_celular} onChange={handleChange} />
+  <div className="form-group">
+    <label>Aseguradora</label>
+    <input
+      name="aseguradora"
+      value={formData.aseguradora}
+      onChange={handleChange}
+      required
+    />
+  </div>
 
-          <input type="file" onChange={handleFileChange} accept=".pdf,.jpg,.png" />
+  <div className="form-group">
+    <label>Tipo de Garantía</label>
+    <input
+      name="tipo_garantia"
+      value={formData.tipo_garantia}
+      onChange={handleChange}
+      required
+    />
+  </div>
 
-          <div className="modal-actions">
-            <button type="submit" className="btn-guardar">{garantia ? 'Actualizar Garantía' : 'Registrar Garantía'}</button>
-          </div>
-        </form>
+  <div className="form-group">
+    <label>Número de Póliza</label>
+    <input
+      name="no_poliza"
+      value={formData.no_poliza}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Suma Asegurada</label>
+    <input
+      type="number"
+      name="suma_asegurada"
+      value={formData.suma_asegurada}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Inicio de Vigencia</label>
+    <input
+      type="date"
+      name="inicio_vigencia"
+      value={formData.inicio_vigencia}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Años de Vigencia</label>
+    <input
+      type="number"
+      name="anos_vigencia"
+      min={1}
+      value={formData.anos_vigencia}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Fecha de Vencimiento</label>
+    <input
+      type="date"
+      name="vigencia"
+      value={formData.vigencia}
+      readOnly
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Prima</label>
+    <input
+      type="number"
+      name="prima"
+      value={formData.prima}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  {/* Teléfonos */}
+  <div className="form-group">
+    <label>Teléfono fijo</label>
+    <input
+      name="telefono_fijo"
+      value={formData.telefono_fijo}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Teléfono celular</label>
+    <input
+      name="telefono_celular"
+      value={formData.telefono_celular}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Archivo (PDF o imagen)</label>
+    <input
+      type="file"
+      onChange={handleFileChange}
+      accept=".pdf,.jpg,.png"
+    />
+  </div>
+
+  <div className="modal-actions">
+    <button type="submit" className="btn-guardar">
+      {garantia ? 'Actualizar Garantía' : 'Registrar Garantía'}
+    </button>
+  </div>
+
+</form>
+
       ) : null}
     </Modal>
   );

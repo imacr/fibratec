@@ -176,7 +176,7 @@
           <input type="email" name="correo" placeholder="Correo electrónico" value={formData.correo} onChange={handleChange} required />
 
           <select name="rol" value={formData.rol} onChange={handleChange}>
-            <option value="admin">Admin</option>
+            <option value="Administrador">Admin</option>
             <option value="usuario">Usuario</option>
             <option value="Conductor">Conductor</option>
           </select>
@@ -195,15 +195,91 @@
 
               {formData.crearChofer && (
                 <>
-                  <input type="text" name="curp" placeholder="CURP" value={formData.curp} onChange={handleChange} required />
-                  <input type="text" name="calle" placeholder="Calle" value={formData.calle} onChange={handleChange} />
-                  <input type="text" name="colonia_localidad" placeholder="Colonia/Localidad" value={formData.colonia_localidad} onChange={handleChange} />
-                  <input type="text" name="codpos" placeholder="Código Postal" value={formData.codpos} onChange={handleChange} />
-                  <input type="text" name="municipio" placeholder="Municipio" value={formData.municipio} onChange={handleChange} />
-                  <input type="text" name="licencia_folio" placeholder="Folio Licencia" value={formData.licencia_folio} onChange={handleChange} required />
-                  <input type="text" name="licencia_tipo" placeholder="Tipo Licencia" value={formData.licencia_tipo} onChange={handleChange} required />
-                  <input type="date" name="licencia_vigencia" value={formData.licencia_vigencia || ""} onChange={handleChange} required />
-                </>
+  <div className="form-group">
+    <label>CURP</label>
+    <input
+      type="text"
+      name="curp"
+      value={formData.curp}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Calle</label>
+    <input
+      type="text"
+      name="calle"
+      value={formData.calle}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Colonia / Localidad</label>
+    <input
+      type="text"
+      name="colonia_localidad"
+      value={formData.colonia_localidad}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Código Postal</label>
+    <input
+      type="text"
+      name="codpos"
+      value={formData.codpos}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Municipio</label>
+    <input
+      type="text"
+      name="municipio"
+      value={formData.municipio}
+      onChange={handleChange}
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Folio de Licencia</label>
+    <input
+      type="text"
+      name="licencia_folio"
+      value={formData.licencia_folio}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Tipo de Licencia</label>
+    <input
+      type="text"
+      name="licencia_tipo"
+      value={formData.licencia_tipo}
+      onChange={handleChange}
+      required
+    />
+  </div>
+
+  <div className="form-group">
+    <label>Fecha de expiración de la licencia</label>
+    <input
+      type="date"
+      name="licencia_vigencia"
+      value={formData.licencia_vigencia || ""}
+      onChange={handleChange}
+      required
+    />
+  </div>
+</>
+
               )}
             </>
           )}

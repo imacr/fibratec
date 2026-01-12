@@ -236,7 +236,7 @@ export default function AsignacionesActivas() {
           <option value="">--Selecciona Unidad--</option>
           {unidadesFiltradas().map(u => (
             <option key={u.id_unidad} value={u.id_unidad}>
-              {u.id_unidad} - {u.nombre}
+              {u.cve} - {u.nombre}
             </option>
           ))}
         </select>

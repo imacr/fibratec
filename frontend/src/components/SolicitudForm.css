@@ -126,12 +126,12 @@
 
 
 .chat-bubble {
-  max-width: 70%;
-  padding: 10px 14px;
-  border-radius: 18px;
-  word-wrap: break-word;
-  margin-bottom: 8px;
-  position: relative;
+  max-width: 70% !important;
+  padding: 10px 14px !important;
+  border-radius: 18px !important;
+  word-wrap: break-word !important;
+  margin-bottom: 8px !important;
+  position: relative !important;
   font-size: 0.9rem;
   line-height: 1.3;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
@@ -150,17 +150,17 @@
 
 /* Colores estilo WhatsApp */
 .chat-bubble.azul { 
-  background-color: #34B7F1; /* azul WhatsApp */
-  color: white; 
+  background-color: #34B7F1 !important; /* azul WhatsApp */
+  color: white !important; 
 }
 
 .chat-bubble.verde { 
-  background-color: #DCF8C6; /* verde WhatsApp claro */
+  background-color: #DCF8C6 !important; /* verde WhatsApp claro */
   color: black; 
 }
 
 .chat-bubble.gris { 
-  background-color: #ECE5DD; /* gris WhatsApp */
+  background-color: #ECE5DD ; /* gris WhatsApp */
   color: black; 
 }
 
@@ -170,7 +170,7 @@
   font-size: 0.85rem;
   display: block;
   margin-bottom: 4px;
-  color: #075E54; /* siempre visible sobre burbujas claras */
+  color: #075E54 !important; /* siempre visible sobre burbujas claras */
 }
 
 /* Fecha del mensaje */
@@ -180,7 +180,7 @@
   display: block;
   margin-top: 4px;
   text-align: right;
-  color: #555; /* más contraste, siempre visible */
+  color: #555 !important; /* más contraste, siempre visible */
 }
 
 /* Imagen, video o PDF */
@@ -287,4 +287,62 @@
 
 .respuesta-form button:hover {
   background-color: #0B93F6; /* azul más oscuro */
+}
+
+/* SolicitudesTable.css */
+td {
+  padding: 8px 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+/* Botones por tipo con colores suaves */
+button.aceptar {
+  background-color: #38a169;
+  color: white;
+}
+
+button.rechazar {
+  background-color: #e53e3e;
+  color: white;
+}
+
+button.ver-evidencia {
+  background-color: #3182ce;
+  color: white;
+}
+
+button.registrar-falla {
+  background-color: #dd6b20;
+  color: white;
+}
+
+button.ver-chat {
+  background-color: #805ad5;
+  color: white;
+}
+
+span.sin-evidencia {
+  color: #718096;
+  font-style: italic;
+}
+
+/* Flex para botones múltiples */
+.flex-gap {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }

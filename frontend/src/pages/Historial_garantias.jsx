@@ -90,7 +90,7 @@ const cerrarModal = () => setModalUrl(null);
               datosPagina.map((h, i) => (
                 <tr key={i}>
                   <td style={{ display: "none" }}>{h.id}</td>
-                  <td>{h.cve_unidad}</td>
+                  <td>{h.cve} {h.marca} {h.version} {h.modelo}</td>
                   <td>{h.id_garantia}</td>
                   <td>{h.aseguradora}</td>
                   <td>{h.tipo_garantia}</td>

@@ -91,7 +91,7 @@ export default function HistorialAsignaciones() {
               currentData.map(h => (
                 <tr key={h.id_historial}>
                   <td>{h.id_historial}</td>
-                  <td>{h.id_unidad} - {h.nombre_unidad}</td>
+                  <td>{h.cve} - {h.nombre_unidad}</td>
                 <td>{h.nombre_usuario}</td>
 
                   <td>
@@ -120,7 +120,7 @@ export default function HistorialAsignaciones() {
     currentData.map(h => (
       <div key={h.id_historial} className="unidad-card">
         <p><b>ID Historial:</b> {h.id_historial}</p>
-        <p><b>Unidad:</b> {h.id_unidad} - {h.nombre_unidad}</p>
+        <p><b>Unidad:</b> {h.cve} - {h.nombre_unidad}</p>
         <p><b>Chofer:</b> {h.nombre_usuario}</p>
         <p><b>Fecha Asignación:</b> {h.fecha_asignacion ? new Date(h.fecha_asignacion).toLocaleDateString("es-MX") : "-"}</p>
         <p><b>Fecha Fin:</b> {h.fecha_fin ? new Date(h.fecha_fin).toLocaleDateString("es-MX") : "-"}</p>

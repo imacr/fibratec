@@ -10,6 +10,8 @@ export default function FrecuenciasPorMarca() {
   const [tiempo, setTiempo] = useState("");
   const [km, setKm] = useState("");
   const [tipos, setTipos] = useState([]);
+  const [busqueda, setBusqueda] = useState("");
+
 
   // === Obtener Tipos de Mantenimiento ===
   const fetchTipos = async () => {
@@ -73,76 +75,65 @@ export default function FrecuenciasPorMarca() {
     fetchFrecuencias();
   }, []);
 
+const frecuenciasFiltradas = frecuencias.filter((f) => {
+  const texto = busqueda.toLowerCase();
+
+  const unidadTexto = f.unidad
+    ? `${f.unidad.cve} ${f.unidad.marca} ${f.unidad.version}`
+        .toLowerCase()
+    : "";
+
+  const tipoNombre =
+    tipos.find(t => t.id_tipo_mantenimiento === f.id_tipo_mantenimiento)
+      ?.nombre_tipo.toLowerCase() || "";
+
+  return (
+    unidadTexto.includes(texto) ||
+    tipoNombre.includes(texto)
+  );
+});
+
+
   return (
     <div className="unidades-container">
       <h1>Frecuencias por Marca</h1>
 
-      {/* === Formulario === */}
-      <form onSubmit={handleSubmit} className="form-mantenimiento">
-        <input
-          type="text"
-          placeholder="Marca"
-          value={marca}
-          onChange={(e) => setMarca(e.target.value)}
-          className="form-input"
-        />
-
-        <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          className="form-input"
-        >
-          <option value="">Selecciona tipo</option>
-          {tipos.map((t) => (
-            <option key={t.id_tipo_mantenimiento} value={t.id_tipo_mantenimiento}>
-              {t.nombre_tipo}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="number"
-          placeholder="Días"
-          value={tiempo}
-          onChange={(e) => setTiempo(e.target.value)}
-          className="form-input"
-        />
-
-        <input
-          type="number"
-          placeholder="Kilometraje"
-          value={km}
-          onChange={(e) => setKm(e.target.value)}
-          className="form-input"
-        />
-
-        <button type="submit" className="btn-agregar">
-          Agregar
-        </button>
-      </form>
-
       {/* === Tabla === */}
+      <div className="filtros">
+      <input
+        type="text"
+        placeholder="Buscar por CVE, marca, versión o tipo"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+      />
+    </div>
+
       <div className="table-wrapper">
         <table className="elegant-table">
           <thead>
             <tr>
               <th>ID</th>
-              <th>Marca</th>
+              <th>Unidad</th>
               <th>Tipo</th>
               <th>Días</th>
               <th>Kilometraje</th>
             </tr>
           </thead>
           <tbody>
-            {frecuencias.length > 0 ? (
-              frecuencias.map((f) => {
+            {frecuenciasFiltradas.length > 0 ? (
+
+              frecuenciasFiltradas.map((f) => {
                 const tipoObj = tipos.find(
                   (t) => t.id_tipo_mantenimiento === f.id_tipo_mantenimiento
                 );
                 return (
                   <tr key={f.id_frecuencia}>
                     <td>{f.id_frecuencia}</td>
-                    <td>{f.marca}</td>
+                    <td>
+                      {f.unidad
+                        ? `${f.unidad.cve} - ${f.unidad.marca} ${f.unidad.modelo} ${f.unidad.version}`
+                        : ""}
+                    </td>
                     <td>{tipoObj?.nombre_tipo || "—"}</td>
                     <td>{f.frecuencia_tiempo}</td>
                     <td>{f.frecuencia_kilometraje}</td>

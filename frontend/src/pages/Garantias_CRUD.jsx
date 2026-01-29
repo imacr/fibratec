@@ -328,7 +328,7 @@ const Crudgarantias = ({ onClose, onCreate, garantia }) => {
     <input
       type="file"
       onChange={handleFileChange}
-      accept=".pdf,.jpg,.png"
+      accept="image/*,application/pdf"
     />
   </div>
 

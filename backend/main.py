@@ -49,19 +49,33 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configuración de CORS para permitir peticiones desde tu frontend (Vite en puerto 5173 por defecto)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
+#CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.253.142:5173"}})
 
 # Configuración segura usando variables de entorno
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'una-clave-secreta-para-desarrollo')
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://localhost:5173"}})
+#CORS(app, supports_credentials=True, resources={r"/*": {"origins": "http://192.168.253.142:5173"}})
+CORS(
+    app,
+    supports_credentials=True,
+    resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5173",
+                "http://192.168.253.142:5173",
+                "http://45.189.236.240:5173"
+            ]
+        }
+    }
+)
 
 # Evitar que flask-sqlalchemy lea otra variable de entorno
 # Evitar que flask-sqlalchemy lea otra variable de entorno
 
-DB_USER = os.getenv('DB_USER', 'Imanol')
-DB_PASS = os.getenv('DB_PASS', 'FIBRATEC0101')
-DB_HOST = os.getenv('DB_HOST', '192.168.253.135')
-DB_NAME = os.getenv('DB_NAME', 'control_vehicular_unificada')
+DB_USER = os.getenv('DB_USER', 'root')
+DB_PASS = os.getenv('DB_PASS', 'admin')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_NAME = os.getenv('DB_NAME', 'prueba_base')
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -125,7 +139,7 @@ class Usuarios(db.Model):
     contraseña = db.Column(db.String(255), nullable=False)
     correo = db.Column(db.String(255), unique=True, nullable=False)
     rol = db.Column(db.String(50), nullable=False)
-    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_registro = db.Column(db.DateTime, default=datetime.now)
     fecha_ultimo_login = db.Column(db.DateTime, nullable=True)
     estado = db.Column(db.Boolean, default=True)
     token_recuperacion = db.Column(db.String(255), nullable=True)
@@ -166,6 +180,14 @@ class Choferes(db.Model):
     def to_dict(self):
         return {
             "id_chofer": self.id_chofer,
+            "id_usuario": self.id_usuario,
+
+            "calle": self.calle,
+            "colonia_localidad": self.colonia_localidad,
+            "codpos": self.codpos,
+            "municipio": self.municipio,
+            "licencia_folio": self.licencia_folio,
+
             "nombre": self.nombre,
             "curp": self.curp,
             "licencia_tipo": self.licencia_tipo,
@@ -185,6 +207,7 @@ class Unidades(db.Model):
     clase = db.Column(db.String(100))
     modelo = db.Column(db.String(100))
     año = db.Column(db.Integer)
+    estado = db.Column(db.Boolean, default=True)  # True = activa, False = desactivada
 
     niv = db.Column(db.String(50), unique=True)
     motor = db.Column(db.String(50))
@@ -207,6 +230,11 @@ class Unidades(db.Model):
     valor_factura = db.Column(db.Numeric(12,2), default=0)
     url_factura = db.Column(db.String(255))
     url_foto = db.Column("foto_url", db.String(255))
+    foto_lateral_izq = db.Column(db.String(255))
+    foto_lateral_der = db.Column(db.String(255))
+    foto_frontal = db.Column(db.String(255))
+    foto_trasera = db.Column(db.String(255))
+    foto_tablero_nivel = db.Column(db.String(255))
     kilometraje_actual = db.Column(db.Integer)
 
     fecha_registro = db.Column(db.DateTime, server_default=func.now())
@@ -297,6 +325,8 @@ class Placas(db.Model):
     requiere_renovacion = db.Column(db.Boolean, default=False)
     monto_pago = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     url_comprobante_pago = db.Column(db.String(255))
+    estado = db.Column(db.Boolean, default=1)  # 1 = activo, 0 = desactivado
+
     url_tarjeta_circulacion = db.Column(db.String(255))
 
     def to_dict(self):
@@ -332,8 +362,26 @@ class Garantias(db.Model):
     prima = db.Column(db.Numeric(15,2))
     telefono_fijo = db.Column(db.String(20))    # NUEVO
     telefono_celular = db.Column(db.String(20)) # NUEVO
+    estado = db.Column(db.Boolean, default=1)  # 1 = activo, 0 = desactivado
 
     unidad = db.relationship("Unidades", backref="garantias")
+
+    def to_dict(self):
+        return {
+            "id_garantia": self.id_garantia,
+            "id_unidad": self.id_unidad,
+            "aseguradora": self.aseguradora,
+            "tipo_garantia": self.tipo_garantia,
+            "no_poliza": self.no_poliza,
+            "url_poliza": self.url_poliza,
+            "suma_asegurada": float(self.suma_asegurada) if self.suma_asegurada else 0,
+            "inicio_vigencia": self.inicio_vigencia.strftime("%Y-%m-%d") if self.inicio_vigencia else None,
+            "vigencia": self.vigencia.strftime("%Y-%m-%d") if self.vigencia else None,
+            "prima": float(self.prima) if self.prima else 0,
+            "telefono_fijo": self.telefono_fijo,
+            "telefono_celular": self.telefono_celular,
+            "estado": self.estado
+        }
 
 
 # Modelo de historial de Garantías
@@ -405,8 +453,26 @@ class VerificacionVehicular(db.Model):
     holograma = db.Column(db.String(50))
     folio_verificacion = db.Column(db.String(50))
     engomado = db.Column(db.String(50))
+    estado = db.Column(db.Boolean, default=1)  # 1 = activo, 0 = desactivado
 
     unidad = db.relationship("Unidades", backref="verificaciones")
+    def to_dict(self):
+        return {
+            "id_verificacion": self.id_verificacion,
+            "id_unidad": self.id_unidad,
+            "ultima_verificacion": self.ultima_verificacion.strftime("%Y-%m-%d") if self.ultima_verificacion else None,
+            "periodo_1": self.periodo_1.strftime("%Y-%m-%d") if self.periodo_1 else None,
+            "periodo_1_real": self.periodo_1_real.strftime("%Y-%m-%d") if self.periodo_1_real else None,
+            "url_verificacion_1": self.url_verificacion_1,
+            "periodo_2": self.periodo_2.strftime("%Y-%m-%d") if self.periodo_2 else None,
+            "periodo_2_real": self.periodo_2_real.strftime("%Y-%m-%d") if self.periodo_2_real else None,
+            "url_verificacion_2": self.url_verificacion_2,
+            "holograma": self.holograma,
+            "folio_verificacion": self.folio_verificacion,
+            "engomado": self.engomado,
+            "estado": self.estado
+        }
+    
 
 
 class HistorialVerificacionVehicular(db.Model):
@@ -451,9 +517,15 @@ class SolicitudFalla(db.Model):
     id_marca = db.Column(db.Integer, db.ForeignKey("MarcasPiezas.id_marca"))
     tipo_servicio = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.Text)
+    id_usuario = db.Column(
+        db.Integer,
+        db.ForeignKey("Usuarios.id_usuario"),
+        nullable=False
+    )
+
     id_chofer = db.Column(db.Integer, nullable=False)
     estado = db.Column(db.String(20), default="pendiente")  # pendiente/aprobada/rechazada
-    fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_solicitud = db.Column(db.DateTime, default=datetime.now)
     url_comprobante = db.Column(db.String(500))
 
 
@@ -508,7 +580,7 @@ class FallasMensajes(db.Model):
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'))
     mensaje = db.Column(db.Text, nullable=False)
     archivo_adjunto = db.Column(db.String(255))
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)
 
     # Relaciones
     falla = db.relationship("FallaMecanica", backref="mensajes")  # <-- usar el nombre correcto de la clase
@@ -524,7 +596,7 @@ class SolicitudFallaMensajes(db.Model):
     id_usuario = db.Column(db.Integer, db.ForeignKey("Usuarios.id_usuario"))
     mensaje = db.Column(db.Text, nullable=False)
     archivo_adjunto = db.Column(db.String(255))  # <-- esto faltaba
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)
 
     # Relaciones
     solicitud = db.relationship("SolicitudFalla", backref="mensajes")  # para acceder a la solicitud
@@ -557,11 +629,30 @@ class Refrendo_Tenencia(db.Model):
     fecha_pago = db.Column(db.Date, nullable=False)
     limite_pago = db.Column(db.Date, nullable=False)
     url_factura = db.Column(db.String(255))  # <-- Solo un archivo
+    url_comprobante = db.Column(db.String(255))  # <-- Solo un archivo
+
     observaciones = db.Column(db.Text)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.now)
+    estado = db.Column(db.Boolean, default=1)  # 1 = activo, 0 = desactivado
+
 
     # Relación ORM
     unidad = db.relationship("Unidades", backref=db.backref("pagos", lazy=True))
+
+    def to_dict(self):
+        return {
+            "id_pago": self.id_pago,
+            "tipo_pago": self.tipo_pago,
+            "monto": float(self.monto),
+            "monto_refrendo": float(self.monto_refrendo),
+            "monto_tenencia": float(self.monto_tenencia),
+            "fecha_pago": str(self.fecha_pago),
+            "limite_pago": str(self.limite_pago),
+            "url_factura": self.url_factura,
+            "url_comprobante": self.url_comprobante,
+            "observaciones": self.observaciones
+        }
+
 
 
 class Historial_Refrendo_Tenencia(db.Model):
@@ -576,10 +667,11 @@ class Historial_Refrendo_Tenencia(db.Model):
     fecha_pago = db.Column(db.Date)
     url_factura = db.Column(db.String(255))  # <-- Solo un archivo
     observaciones = db.Column(db.Text)
-    fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_registro = db.Column(db.DateTime, default=datetime.now)
     tipo_movimiento = db.Column(db.Enum('REGISTRO','ACTUALIZACION','ELIMINACION'), nullable=False)
     usuario_registro = db.Column(db.String(100))
     observaciones_adicional = db.Column(db.Text)
+    url_comprobante = db.Column(db.String(255))  # <-- Solo un archivo
 
     # Relaciones ORM
     pago = db.relationship("Refrendo_Tenencia", backref=db.backref("historiales", lazy=True))
@@ -593,7 +685,7 @@ class TiposMantenimiento(db.Model):
     id_tipo_mantenimiento = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nombre_tipo = db.Column(db.String(50), nullable=False, unique=True)
     descripcion = db.Column(db.Text)
-
+"""
 class FrecuenciasPorMarca(db.Model):
     __tablename__ = 'FrecuenciasPorMarca'
     id_frecuencia = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -605,6 +697,33 @@ class FrecuenciasPorMarca(db.Model):
         )    
     frecuencia_tiempo = db.Column(db.Integer, nullable=False)        # días
     frecuencia_kilometraje = db.Column(db.Integer, nullable=False)   # km
+"""
+
+class FrecuenciasPorMarca(db.Model):
+    __tablename__ = 'FrecuenciasPorMarca'
+
+    id_frecuencia = db.Column(db.Integer, primary_key=True)
+
+    id_unidad = db.Column(
+        db.Integer,
+        db.ForeignKey('Unidades.id_unidad'),
+        nullable=False
+    )
+
+    id_tipo_mantenimiento = db.Column(
+        db.Integer,
+        db.ForeignKey('TiposMantenimiento.id_tipo_mantenimiento'),
+        nullable=False
+    )
+
+    frecuencia_tiempo = db.Column(db.Integer, nullable=True)
+    frecuencia_kilometraje = db.Column(db.Integer, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('id_unidad', 'id_tipo_mantenimiento'),
+    )
+
+
 
 class MantenimientosProgramados(db.Model):
     __tablename__ = 'MantenimientosProgramados'
@@ -623,7 +742,10 @@ class MantenimientosProgramados(db.Model):
     kilometraje_ultimo = db.Column(db.Integer)
     proximo_mantenimiento = db.Column(db.Date)
     proximo_kilometraje = db.Column(db.Integer)
-
+    tipo_mantenimiento = db.relationship(
+        "TiposMantenimiento",
+        backref="mantenimientos_programados"
+    )
     unidad = db.relationship("Unidades", backref="mantenimientos_programados")
 
 
@@ -701,6 +823,7 @@ class Empresa(db.Model):
     direccion = db.Column(db.String(255))
     inicio_operaciones = db.Column(db.Date)
     estatus = db.Column(db.String(10))
+
     actividad_economica = db.Column(db.String(255))
 
     
@@ -711,6 +834,8 @@ class Sucursal(db.Model):
     direccion = db.Column(db.String(255))
     telefono = db.Column(db.String(20))
     correo = db.Column(db.String(150))
+    estado = db.Column(db.Boolean, default=1)  # 1 = activo, 0 = desactivado
+
     horario = db.Column(db.String(150))
 
 class Alerta(db.Model):
@@ -719,7 +844,7 @@ class Alerta(db.Model):
     id_unidad = db.Column(db.Integer, db.ForeignKey("Unidades.id_unidad", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     tipo_alerta = db.Column(db.String(50), nullable=False)
     descripcion = db.Column(db.Text, nullable=False)
-    fecha_generada = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    fecha_generada = db.Column(db.DateTime, nullable=False, default=datetime.now)
     fecha_resuelta = db.Column(db.DateTime, nullable=True)
     estado = db.Column(db.String(20), nullable=False, default="pendiente")  # pendiente / enviada / atendida
     detalle = db.Column(db.JSON, nullable=True)
@@ -743,15 +868,15 @@ def login():
     password = data.get('password')
 
     if not username or not password:
-        return jsonify({"error": "Usuario y contraseña son requeridos"}), 400
+        return jsonify({"error": "Correo y contraseña son requeridos"}), 400
 
-    user = Usuarios.query.filter_by(usuario=username, estado=True).first()
+    user = Usuarios.query.filter_by(correo=username, estado=True).first()
 
     # Validar usuario y contraseña con Flask-Bcrypt
     if not user or not bcrypt.check_password_hash(user.contraseña, password):
         return jsonify({"error": "Credenciales inválidas o usuario inactivo"}), 401
 
-    user.fecha_ultimo_login = datetime.utcnow()
+    user.fecha_ultimo_login = datetime.now()
     db.session.commit()
 
     access_token = create_access_token(identity=user.id_usuario)
@@ -814,6 +939,18 @@ def crear_usuario():
         if not (nombre and usuario and contraseña and correo):
             return jsonify({'error': 'Datos incompletos'}), 400
 
+        # >>> VALIDACIÓN AGREGADA <<<
+        if Usuarios.query.filter(
+            func.lower(Usuarios.usuario) == usuario.lower()
+        ).first():
+            return jsonify({'error': 'El usuario ya existe'}), 409
+
+        # >>> VALIDACIÓN AGREGADA <<<
+        if Usuarios.query.filter(
+            func.lower(Usuarios.correo) == correo.lower()
+        ).first():
+            return jsonify({'error': 'El correo ya está registrado'}), 409
+
         hashed_password = bcrypt.generate_password_hash(contraseña).decode('utf-8')
 
         nuevo_usuario = Usuarios(
@@ -827,20 +964,47 @@ def crear_usuario():
         db.session.flush()
         id_usuario = nuevo_usuario.id_usuario
 
+        # ---------------- VALIDACIONES DE CHOFER ----------------
         if crear_chofer:
             required_fields = ['nombre', 'curp', 'licencia_folio', 'licencia_tipo', 'licencia_vigencia']
             if not all(chofer_data.get(f) for f in required_fields):
                 db.session.rollback()
                 return jsonify({'error': 'Datos del chofer incompletos'}), 400
 
+            import re
+            curp = chofer_data.get('curp').upper()
+            patron_curp = r'^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$'
+            if not re.match(patron_curp, curp):
+                db.session.rollback()
+                return jsonify({'error': 'CURP inválida'}), 400
+
+            # >>> VALIDACIÓN AGREGADA <<<
+            if Choferes.query.filter(
+                func.lower(Choferes.curp) == curp.lower()
+            ).first():
+                db.session.rollback()
+                return jsonify({'error': 'La CURP ya está registrada'}), 409
+
+            folio = chofer_data.get('licencia_folio')
+            if len(folio) < 5:
+                db.session.rollback()
+                return jsonify({'error': 'Folio de licencia inválido'}), 400
+
+            # >>> VALIDACIÓN AGREGADA <<<
+            if Choferes.query.filter(
+                func.lower(Choferes.licencia_folio) == folio.lower()
+            ).first():
+                db.session.rollback()
+                return jsonify({'error': 'El folio de licencia ya está registrado'}), 409
+
             nuevo_chofer = Choferes(
                 nombre=chofer_data.get('nombre'),
-                curp=chofer_data.get('curp'),
+                curp=curp,
                 calle=chofer_data.get('calle'),
                 colonia_localidad=chofer_data.get('colonia_localidad'),
                 codpos=chofer_data.get('codpos'),
                 municipio=chofer_data.get('municipio'),
-                licencia_folio=chofer_data.get('licencia_folio'),
+                licencia_folio=folio,
                 licencia_tipo=chofer_data.get('licencia_tipo'),
                 licencia_vigencia=chofer_data.get('licencia_vigencia'),
                 id_usuario=id_usuario
@@ -854,7 +1018,10 @@ def crear_usuario():
             recipients=[correo],
             body=f"Hola {nombre},\n\nUsuario: {usuario}\nContraseña: {contraseña}"
         )
-        threading.Thread(target=enviar_correo_async, args=(app, msg)).start()
+        threading.Thread(
+            target=enviar_correo_async,
+            args=(app, msg)
+        ).start()
 
         return jsonify({"mensaje": "Usuario creado correctamente"}), 201
 
@@ -868,6 +1035,8 @@ def crear_usuario():
             return jsonify({'error': 'El correo ya está registrado'}), 409
         if 'curp' in error_msg:
             return jsonify({'error': 'La CURP ya está registrada'}), 409
+        if 'licencia_folio' in error_msg:
+            return jsonify({'error': 'El folio de licencia ya está registrado'}), 409
 
         return jsonify({'error': 'Registro duplicado'}), 409
 
@@ -878,6 +1047,28 @@ def crear_usuario():
 
 @app.route('/api/usuarios/<int:id_usuario>', methods=['DELETE'])
 def eliminar_usuario(id_usuario):
+
+    try:
+        usuario = Usuarios.query.get(id_usuario)
+        if not usuario:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        # Cambiar el estado a 0 (desactivado) en lugar de eliminar
+        if usuario.estado == 0:
+            return jsonify({"mensaje": "El usuario ya está desactivado"}), 200
+
+        usuario.estado = 0  # desactivado
+        db.session.commit()
+
+        return jsonify({"mensaje": "Usuario desactivado correctamente"}), 200
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al desactivar el usuario"
+        }), 500
+        
+    """
     try:
         usuario = Usuarios.query.get(id_usuario)
         if not usuario:
@@ -905,12 +1096,13 @@ def eliminar_usuario(id_usuario):
         return jsonify({
             "error": "Error al eliminar el usuario"
         }), 500
-
+"""
 
 
 @app.route('/api/usuarios', methods=['GET'])
 def obtener_usuarios():
-    usuarios = Usuarios.query.all()
+    # Traer solo usuarios activos
+    usuarios = Usuarios.query.filter_by(estado=1).all()
     resultado = []
 
     for u in usuarios:
@@ -923,7 +1115,6 @@ def obtener_usuarios():
             'fecha_registro': u.fecha_registro,
             'fecha_ultimo_login': u.fecha_ultimo_login,
             'estado': u.estado,
-            # Usar la relación chofer en lugar de u.id_chofer
             'id_chofer': u.chofer.id_chofer if u.chofer else None,
             'chofer': {
                 'id_chofer': u.chofer.id_chofer,
@@ -940,7 +1131,6 @@ def obtener_usuarios():
         })
 
     return jsonify(resultado), 200
-
 
 @app.route('/api/usuarios/<int:id_usuario>', methods=['PUT'])
 def actualizar_usuario(id_usuario):
@@ -1034,6 +1224,97 @@ def actualizar_usuario(id_usuario):
             "error": "Error al actualizar el usuario"
         }), 500
 
+#=============================================================
+#CONDUCTORES - OBTENER CHOFERES SIN USUARIO ASIGNADO
+#=============================================================
+@app.route("/api/usuarios/sin-chofer", methods=["GET"])
+def usuarios_sin_chofer():
+    usuarios = Usuarios.query.filter(
+        Usuarios.estado == True,
+        ~Usuarios.chofer.has()
+    ).all()
+
+    return jsonify([
+        {
+            "id_usuario": u.id_usuario,
+            "nombre": u.nombre,
+            "usuario": u.usuario
+        } for u in usuarios
+    ]), 200
+
+
+@app.route("/api/conductores", methods=["GET"])
+def listar_conductores():
+    choferes = (
+        Choferes.query
+        .join(Usuarios)
+        .filter(Usuarios.estado == True)
+        .all()
+    )
+
+    return jsonify([c.to_dict() for c in choferes]), 200
+
+
+@app.route("/api/choferes", methods=["POST"])
+def crear_chofer():
+    data = request.json
+    id_usuario = data.get("id_usuario")
+
+    if not id_usuario:
+        return jsonify({"error": "Se requiere id_usuario"}), 400
+
+    # 1. Buscar usuario
+    usuario = Usuarios.query.get(id_usuario)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # 2. Validar que esté activo
+    if not usuario.estado:
+        return jsonify({"error": "El usuario está inactivo"}), 400
+
+    # 3. Validar que no exista ya como chofer
+    if Choferes.query.filter_by(id_usuario=id_usuario).first():
+        return jsonify({"error": "El usuario ya es conductor"}), 400
+
+    # 4. Crear chofer usando el nombre del usuario
+    nuevo_chofer = Choferes(
+        nombre=usuario.nombre,  # 👈 CLAVE
+        curp=data.get("curp"),
+        calle=data.get("calle"),
+        colonia_localidad=data.get("colonia_localidad"),
+        codpos=data.get("codpos"),
+        municipio=data.get("municipio"),
+        licencia_folio=data.get("licencia_folio"),
+        licencia_tipo=data.get("licencia_tipo"),
+        licencia_vigencia=data.get("licencia_vigencia"),
+        id_usuario=id_usuario
+    )
+
+    db.session.add(nuevo_chofer)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Conductor registrado correctamente",
+        "chofer": nuevo_chofer.to_dict()
+    }), 201
+
+@app.route("/api/choferes/<int:id_chofer>", methods=["PUT"])
+def editar_chofer(id_chofer):
+    chofer = Choferes.query.get_or_404(id_chofer)
+    data = request.json
+
+    chofer.curp = data.get("curp")
+    chofer.calle = data.get("calle")
+    chofer.colonia_localidad = data.get("colonia_localidad")
+    chofer.codpos = data.get("codpos")
+    chofer.municipio = data.get("municipio")
+    chofer.licencia_folio = data.get("licencia_folio")
+    chofer.licencia_tipo = data.get("licencia_tipo")
+    chofer.licencia_vigencia = data.get("licencia_vigencia")
+
+    db.session.commit()
+    return jsonify({"message": "Conductor actualizado"}), 200
+
 
 @app.route('/api/choferes', methods=['GET'])
 def obtener_choferes():
@@ -1067,6 +1348,8 @@ def request_password_reset():
     """Maneja la solicitud de recuperación de contraseña."""
     data = request.get_json()
     email = data.get('email')
+    frontend_url = data.get('frontend_url')
+
 
     if not email:
         return jsonify({"error": "Correo electrónico requerido"}), 400
@@ -1076,13 +1359,13 @@ def request_password_reset():
         # Generar el token de recuperación
         token = secrets.token_urlsafe(32)
         user.token_recuperacion = token
-        user.token_expiracion = datetime.utcnow() + timedelta(hours=1)
+        user.token_expiracion = datetime.now() + timedelta(hours=1)
         db.session.commit()
 
         try:
             # Crear el enlace de restablecimiento
             #reset_link = f"{os.getenv('FRONTEND_URL', 'http://192.168.254.158:5173')}/reset-password/{token}"
-            frontend_url = "http://192.168.253.142:5173"
+            #frontend_url = "http://192.168.255.174:5173"
             reset_link = f"{frontend_url}/reset-password/{token}"
 
             msg = Message(
@@ -1140,28 +1423,35 @@ def request_password_reset():
 
 @app.route('/api/reset-password/<string:token>', methods=['POST'])
 def reset_password(token):
-    """Maneja el cambio de contraseña a través del token."""
+    token = token.strip()
+
     data = request.get_json()
     password = data.get('password')
 
-    if not password:    
+    print("TOKEN URL:", repr(token))
+
+    if not password:
         return jsonify({"error": "La nueva contraseña es requerida"}), 400
 
-    # Buscar usuario con token válido
     user = Usuarios.query.filter_by(token_recuperacion=token)\
-                         .filter(Usuarios.token_expiracion > datetime.utcnow())\
+                         .filter(Usuarios.token_expiracion > datetime.now())\
                          .first()
+
+    print("USER:", user)
+    if user:
+        print("TOKEN EXPIRA EN:", user.token_expiracion)
+        print("HORA ACTUAL UTC:", datetime.now())
 
     if not user:
         return jsonify({"error": "El token es inválido o ha expirado."}), 400
 
-    # Generar hash usando bcrypt
     user.contraseña = bcrypt.generate_password_hash(password).decode('utf-8')
     user.token_recuperacion = None
     user.token_expiracion = None
     db.session.commit()
 
     return jsonify({"message": "Contraseña actualizada con éxito"}), 200
+
 
 
 # =======================
@@ -1197,7 +1487,6 @@ def get_unidades_data():
             )
             params.append(estado_tarjeta)
 
-        # WHERE dinámico
         where_clause = f"WHERE {' AND '.join(filtros)}"
 
         query = f"""
@@ -1216,12 +1505,16 @@ def get_unidades_data():
             U.fecha_adquisicion,
             P.fecha_vigencia AS fecha_vencimiento_tarjeta,
             CASE WHEN P.fecha_vigencia < CURDATE() THEN 'Vencida' ELSE 'Activa' END AS estado_tarjeta,
-            V.engomado,
             U2.nombre AS chofer_asignado,
             U.valor_factura,
             U.url_factura,
             U.kilometraje_actual,
             U.foto_url,
+            U.foto_lateral_izq,
+            U.foto_lateral_der,
+            U.foto_frontal,
+            U.foto_trasera,
+            U.foto_tablero_nivel,
             U.id_empresa,
             U.transmision,
             U.id_sucursal,
@@ -1239,12 +1532,12 @@ def get_unidades_data():
                 'motor', U.motor,
                 'placa', P.placa,
                 'valor factura', U.valor_factura,
-                'combustible', U.id_combustible,
+                'combustible', CB.name,
                 'compra_arrendado', U.compra_arrendado,
                 'propietario', U.propietario,
                 'es_utilitario', U.es_utilitario,
                 'uid', U.uid,
-                'kiloetraje actual', U.kilometraje_actual,
+                'kilometraje actual', U.kilometraje_actual,
                 'telefono_gps', U.telefono_gps,
                 'sim_gps', U.sim_gps,
                 'no_poliza', G.no_poliza,
@@ -1256,21 +1549,40 @@ def get_unidades_data():
         FROM Unidades U
         LEFT JOIN (
             SELECT * FROM Placas P1
-            WHERE P1.id_placa = (SELECT P2.id_placa FROM Placas P2 WHERE P2.id_unidad = P1.id_unidad ORDER BY P2.fecha_vigencia DESC LIMIT 1)
+            WHERE P1.id_placa = (
+                SELECT P2.id_placa 
+                FROM Placas P2 
+                WHERE P2.id_unidad = P1.id_unidad 
+                ORDER BY P2.fecha_vigencia DESC 
+                LIMIT 1
+            )
         ) P ON U.id_unidad = P.id_unidad
         LEFT JOIN (
             SELECT * FROM Garantias G1
-            WHERE G1.id_garantia = (SELECT G2.id_garantia FROM Garantias G2 WHERE G2.id_unidad = G1.id_unidad ORDER BY G2.vigencia DESC LIMIT 1)
+            WHERE G1.id_garantia = (
+                SELECT G2.id_garantia 
+                FROM Garantias G2 
+                WHERE G2.id_unidad = G1.id_unidad 
+                ORDER BY G2.vigencia DESC 
+                LIMIT 1
+            )
         ) G ON U.id_unidad = G.id_unidad
         LEFT JOIN (
             SELECT * FROM VerificacionVehicular V1
-            WHERE V1.id_verificacion = (SELECT V2.id_verificacion FROM VerificacionVehicular V2 WHERE V2.id_unidad = V1.id_unidad ORDER BY V2.ultima_verificacion DESC LIMIT 1)
+            WHERE V1.id_verificacion = (
+                SELECT V2.id_verificacion 
+                FROM VerificacionVehicular V2 
+                WHERE V2.id_unidad = V1.id_unidad 
+                ORDER BY V2.ultima_verificacion DESC 
+                LIMIT 1
+            )
         ) V ON U.id_unidad = V.id_unidad
         LEFT JOIN Asignaciones A ON U.id_unidad = A.id_unidad AND A.fecha_fin IS NULL
-        LEFT JOIN Choferes C ON A.id_chofer = C.id_chofer
+        LEFT JOIN Usuarios U2 ON A.id_usuario = U2.id_usuario
         LEFT JOIN empresa E ON U.id_empresa = E.id_empresa
         LEFT JOIN Sucursales S ON U.id_sucursal = S.id_sede
-        LEFT JOIN Usuarios U2 ON A.id_usuario = U2.id_usuario
+        LEFT JOIN combustible CB ON U.id_combustible = CB.id_combustible
+
 
         {where_clause}
         ORDER BY U.id_unidad;
@@ -1280,11 +1592,38 @@ def get_unidades_data():
         columns = [col[0] for col in cursor.description]
         results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
+        # =============================
+        # CALCULAR ENGOMADO AQUÍ
+        # =============================
         for unidad in results:
+            placa = unidad.get('placa')
+            engomado = None
+
+            if placa:
+                # buscar último dígito de derecha a izquierda
+                for c in reversed(placa):
+                    if c.isdigit():
+                        d = int(c)
+                        if d in [5, 6]:
+                            engomado = 'Amarillo'
+                        elif d in [7, 8]:
+                            engomado = 'Rosa'
+                        elif d in [3, 4]:
+                            engomado = 'Rojo'
+                        elif d in [1, 2]:
+                            engomado = 'Verde'
+                        elif d in [9, 0]:
+                            engomado = 'Azul'
+                        break
+
+            unidad['engomado'] = engomado
+
             if unidad['fecha_adquisicion']:
                 unidad['fecha_adquisicion'] = unidad['fecha_adquisicion'].strftime('%Y-%m-%d')
+
             if unidad['fecha_vencimiento_tarjeta']:
                 unidad['fecha_vencimiento_tarjeta'] = unidad['fecha_vencimiento_tarjeta'].strftime('%Y-%m-%d')
+
             if unidad['mas_datos']:
                 unidad['mas_datos'] = json.loads(unidad['mas_datos'])
 
@@ -1320,10 +1659,13 @@ def update_unidad(id_unidad):
         UPLOAD_IMG = 'uploads/unidades_imagen'
         UPLOAD_PLACAS = 'uploads/placas'
         UPLOAD_FACTURAS = 'uploads/facturas'
+        TARJETA_IMG_VEHI = 'uploads/imagenes_vehiculo'
+
 
         os.makedirs(UPLOAD_IMG, exist_ok=True)
         os.makedirs(UPLOAD_PLACAS, exist_ok=True)
         os.makedirs(UPLOAD_FACTURAS, exist_ok=True)
+        os.makedirs(TARJETA_IMG_VEHI, exist_ok=True)
 
         data = request.form
         files = request.files
@@ -1375,6 +1717,80 @@ def update_unidad(id_unidad):
                 foto, UPLOAD_IMG, prefijo=f"unidad_{id_unidad}"
             )
 
+        # =========================
+        # IMÁGENES DEL VEHÍCULO
+        # =========================
+        def reemplazar_archivo(file_obj, carpeta, archivo_anterior, prefijo):
+            if not file_obj:
+                return archivo_anterior
+
+            # eliminar archivo anterior
+            if archivo_anterior:
+                path_old = os.path.join(current_app.root_path, archivo_anterior)
+                if os.path.exists(path_old):
+                    os.remove(path_old)
+
+            ext = os.path.splitext(file_obj.filename)[1]
+            filename = secure_filename(
+                f"{prefijo}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+            )
+
+            path_new = os.path.join(carpeta, filename)
+            file_obj.save(path_new)
+
+            return path_new.replace("\\", "/")
+
+        file = files.get("foto_frontal")
+        if file and allowed_image(file.filename):
+            unidad.foto_frontal = reemplazar_archivo(
+                file,
+                TARJETA_IMG_VEHI,
+                unidad.foto_frontal,
+                f"frontal_{id_unidad}"
+            )
+
+
+        file = files.get("foto_trasera")
+        if file and allowed_image(file.filename):
+            unidad.foto_trasera = reemplazar_archivo(
+                file,
+                TARJETA_IMG_VEHI,
+                unidad.foto_trasera,
+                f"trasera_{id_unidad}"
+            )
+
+
+        file = files.get("foto_lateral_izq")
+        if file and allowed_image(file.filename):
+            unidad.foto_lateral_izq = reemplazar_archivo(
+                file,
+                TARJETA_IMG_VEHI,
+                unidad.foto_lateral_izq,
+                f"lateral_izq_{id_unidad}"
+            )
+
+
+        file = files.get("foto_lateral_der")
+        if file and allowed_image(file.filename):
+            unidad.foto_lateral_der = reemplazar_archivo(
+                file,
+                TARJETA_IMG_VEHI,
+                unidad.foto_lateral_der,
+                f"lateral_der_{id_unidad}"
+            )
+
+
+        file = files.get("foto_tablero_nivel")
+        if file and allowed_image(file.filename):
+            unidad.foto_tablero_nivel = reemplazar_archivo(
+                file,
+                TARJETA_IMG_VEHI,
+                unidad.foto_tablero_nivel,
+                f"tablero_{id_unidad}"
+            )
+
+
+
         pdf_factura = files.get("pdf_factura")
         if pdf_factura and allowed_pdf(pdf_factura.filename):
             unidad.url_factura = guardar_archivo_sobre(
@@ -1405,8 +1821,29 @@ def update_unidad(id_unidad):
             "error": "Error al actualizar la unidad"
         }), 500
 
+
+
 #ELIMINACION DE UNIDADES
 @app.route('/api/unidades/<int:id_unidad>', methods=['DELETE'])
+def delete_unidad(id_unidad):
+    try:
+        unidad = Unidades.query.get(id_unidad)
+        if not unidad:
+            return jsonify({"error": "Unidad no encontrada"}), 404
+
+        # Solo cambiar el estado a 0 (desactivada)
+        unidad.estado = False
+        db.session.commit()
+
+        return jsonify({"message": "Unidad desactivada correctamente"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error al desactivar unidad: {e}")
+        return jsonify({"error": "Error al desactivar la unidad"}), 500
+
+
+"""@app.route('/api/unidades/<int:id_unidad>', methods=['DELETE'])
 def delete_unidad(id_unidad):
     conn = db.engine.raw_connection()
     try:
@@ -1422,7 +1859,7 @@ def delete_unidad(id_unidad):
     finally:
         cursor.close()
         conn.close()
-
+"""
 
 
 # Extensiones permitidas
@@ -1436,6 +1873,9 @@ def allowed_pdf(filename):
     allowed_extensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
+def allowed_image(filename):
+    allowed_extensions = {'jpg', 'jpeg', 'png', 'webp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 @app.route('/api/unidades', methods=['POST'])
 def agregar_unidad():
@@ -1450,12 +1890,15 @@ def agregar_unidad():
         UPLOAD_FACTURAS = 'uploads/facturas'
         PAGO_DIR = 'uploads/pagos/'
         TARJETA_DIR = 'uploads/tarjetas_circulacion/'
+        TARJETA_IMG_VEHI = 'uploads/imagenes_vehiculo'
 
         os.makedirs(UPLOAD_IMG, exist_ok=True)
         os.makedirs(UPLOAD_PLACAS, exist_ok=True)
         os.makedirs(UPLOAD_FACTURAS, exist_ok=True)
         os.makedirs(PAGO_DIR, exist_ok=True)
         os.makedirs(TARJETA_DIR, exist_ok=True)
+        os.makedirs(TARJETA_IMG_VEHI, exist_ok=True)
+
 
         data = request.form
         print("=== DATA RECIBIDA ===")
@@ -1509,6 +1952,30 @@ def agregar_unidad():
             except ValueError:
                 return jsonify({"error": "ID de combustible inválido"}), 400
 
+        # =====================================================
+        # 🔒 VALIDACIONES CVE / NIV (NO SE QUITA NADA MÁS)
+        # =====================================================
+        cve = data.get("cve")
+        if cve and Unidades.query.filter_by(cve=cve).first():
+            return jsonify({"error": "La CVE ya está registrada"}), 409
+
+        niv = data.get("niv")
+        if niv and Unidades.query.filter_by(niv=niv).first():
+            return jsonify({"error": "El NIV ya está registrado"}), 409
+
+        # ----------------------------
+        # Validar placa duplicada
+        # ----------------------------
+        placa_input = data.get("placa")
+        if placa_input:
+            placa_existente = Placas.query.filter(
+                func.lower(Placas.placa) == placa_input.lower()
+            ).first()
+
+            if placa_existente:
+                return jsonify({
+                    "error": "La placa ya está registrada en otra unidad"
+                }), 409
 
         # ----------------------------
         # Crear unidad
@@ -1568,6 +2035,34 @@ def agregar_unidad():
             nueva_unidad.url_foto = f"{UPLOAD_IMG}/{filename}".replace("\\", "/")
         elif img_file:
             return jsonify({"error": "La imagen debe ser JPG, JPEG, PNG o WEBP"}), 400
+        
+
+        def guardar_imagen_unica(file_obj, carpeta, prefijo):
+            if not file_obj:
+                print(f"[IMG] {prefijo}: archivo NULL")
+                return None
+
+            print(f"[IMG] {prefijo}: filename recibido -> {file_obj.filename}")
+
+            if not allowed_image(file_obj.filename):
+                print(f"[IMG] {prefijo}: extensión NO permitida")
+                return None
+
+            ext = os.path.splitext(file_obj.filename)[1]
+            filename = secure_filename(
+                f"{prefijo}_{datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+            )
+            abs_path = os.path.join(carpeta, filename)
+
+            print(f"[IMG] {prefijo}: guardando en -> {abs_path}")
+
+            file_obj.save(abs_path)
+
+            ruta = f"{carpeta}/{filename}".replace("\\", "/")
+            print(f"[IMG] {prefijo}: ruta devuelta -> {ruta}")
+
+            return ruta
+
 
         # ----------------------------
         # Guardar PDF
@@ -1587,11 +2082,47 @@ def agregar_unidad():
                 return jsonify({"error": "La factura debe ser PDF"}), 400
             nueva_unidad.url_factura = guardar_pdf_unico(pdf_factura, UPLOAD_FACTURAS)
 
+       
         # ----------------------------
         # Guardar unidad en BD
         # ----------------------------
         db.session.add(nueva_unidad)
         db.session.commit()  # ahora nueva_unidad.id_unidad existe
+
+        # ----------------------------
+        # Guardar imágenes del vehículo (5 vistas)
+        # ----------------------------
+        foto_frontal = request.files.get("foto_frontal")
+        foto_trasera = request.files.get("foto_trasera")
+        foto_lateral_izq = request.files.get("foto_lateral_izq")
+        foto_lateral_der = request.files.get("foto_lateral_der")
+        foto_tablero = request.files.get("foto_tablero")
+
+        nueva_unidad.foto_frontal = guardar_imagen_unica(
+            foto_frontal, TARJETA_IMG_VEHI, f"frontal_{nueva_unidad.id_unidad}"
+        )
+
+        nueva_unidad.foto_trasera = guardar_imagen_unica(
+            foto_trasera, TARJETA_IMG_VEHI, f"trasera_{nueva_unidad.id_unidad}"
+        )
+
+        nueva_unidad.foto_lateral_izq = guardar_imagen_unica(
+            foto_lateral_izq, TARJETA_IMG_VEHI, f"lateral_izq_{nueva_unidad.id_unidad}"
+        )
+
+        nueva_unidad.foto_lateral_der = guardar_imagen_unica(
+            foto_lateral_der, TARJETA_IMG_VEHI, f"lateral_der_{nueva_unidad.id_unidad}"
+        )
+
+        nueva_unidad.foto_tablero_nivel = guardar_imagen_unica(
+            foto_tablero, TARJETA_IMG_VEHI, f"tablero_{nueva_unidad.id_unidad}"
+        )
+        print("=== COMMIT FINAL IMÁGENES ===")
+        print("Unidad ID:", nueva_unidad.id_unidad)
+        db.session.flush()
+
+
+        db.session.commit()  # ← ESTE commit es el que guarda las URLs
 
         # ----------------------------
         # Guardar placas si hay datos o archivos
@@ -1691,6 +2222,7 @@ def agregar_unidad():
         return jsonify({
             "error": "Error al registrar la unidad"
         }), 500
+
 
 import threading
 from datetime import date
@@ -1885,14 +2417,18 @@ def listar_asignaciones():
 
 @app.route('/api/choferes/uno', methods=['GET'])
 def listar_choferes():
-    choferes = Choferes.query.all()
+    # Traer solo choferes cuyo usuario está activo
+    choferes = Choferes.query.join(Usuarios).filter(Usuarios.estado == True).all()
+    
     return jsonify([
         {
             "id_chofer": c.id_chofer,
             "nombre": c.nombre,
-            "curp": c.curp
+            "curp": c.curp,
+            "usuario_activo": c.usuario.estado if c.usuario else False
         } for c in choferes
     ])
+
 
 @app.route('/api/unidades', methods=['GET'])
 def listar_unidad():
@@ -2184,8 +2720,9 @@ def obtener_garantias():
                 WHERE fecha_fin IS NULL
             ) A ON u.id_unidad = A.id_unidad
             LEFT JOIN Usuarios U2 ON A.id_usuario = U2.id_usuario
-            WHERE 1=1
+            WHERE g.estado = 1  -- <- Solo garantías activas
         """
+
 
 
 
@@ -2233,6 +2770,7 @@ def obtener_garantias():
             cursor.close()
         if conn:
             conn.close()
+
 
 ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'webp'}
 
@@ -2319,7 +2857,10 @@ def crear_garantia():
                     telefono_fijo=garantia.telefono_fijo,
                     telefono_celular=garantia.telefono_celular
                 )
+
+
                 db.session.add(historial)
+            
 
             # Actualizar garantía con el archivo nuevo
             garantia.aseguradora = data.get('aseguradora')
@@ -2356,6 +2897,29 @@ def crear_garantia():
             }), 400
 
         db.session.commit()
+        # ---------------- Cerrar alertas de garantía ----------------
+        # ---------------- Cerrar y limpiar alertas de garantía ----------------
+        id_unidad_int = int(id_unidad)
+
+        alertas = Alerta.query.filter(
+            Alerta.id_unidad == id_unidad_int,
+            Alerta.tipo_alerta == "garantia_vencimiento"
+        ).order_by(Alerta.fecha_generada.desc()).all()
+
+        if alertas:
+            alerta_mas_reciente = alertas[0]
+
+            # Marcar SOLO la más reciente como completada
+            alerta_mas_reciente.estado = "completada"
+            alerta_mas_reciente.fecha_resuelta = datetime.now()
+
+            # Eliminar todas las demás
+            for alerta in alertas[1:]:
+                db.session.delete(alerta)
+
+        db.session.commit()
+
+
         return jsonify({
             "mensaje": "Garantía registrada correctamente"
         }), 201
@@ -2516,7 +3080,60 @@ def verificar_garantia(id_unidad):
         "datos": datos
     })
 
+@app.route('/api/garantias/<int:id_garantia>', methods=['DELETE'])
+def eliminar_garantia(id_garantia):
+    conn = db.engine.raw_connection()
+    cursor = conn.cursor()
 
+    try:
+        # Verificar si existe la garantía
+        cursor.execute(
+            "SELECT url_poliza FROM Garantias WHERE id_garantia = %s",
+            (id_garantia,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "La garantía no existe"}), 404
+
+        url_poliza = row[0]
+        # Eliminar archivo asociado, si existe
+        if url_poliza:
+            filepath = os.path.join(
+                app.root_path,
+                url_poliza.lstrip("/").replace("/", os.sep)
+            )
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+        # Cambiar estado a 0 en lugar de eliminar
+        cursor.execute(
+            "UPDATE Garantias SET estado = 0 WHERE id_garantia = %s",
+            (id_garantia,)
+        )
+        conn.commit()
+
+        return jsonify({
+            "mensaje": "Garantía desactivada correctamente"
+        }), 200
+
+    except IntegrityError:
+        conn.rollback()
+        return jsonify({
+            "error": "No es posible modificar la garantía porque está relacionada con otros registros"
+        }), 409
+
+    except Exception:
+        conn.rollback()
+        return jsonify({
+            "error": "Error al desactivar la garantía"
+        }), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+"""
 @app.route('/api/garantias/<int:id_garantia>', methods=['DELETE'])
 def eliminar_garantia(id_garantia):
     conn = db.engine.raw_connection()
@@ -2565,7 +3182,7 @@ def eliminar_garantia(id_garantia):
     finally:
         cursor.close()
         conn.close()
-
+"""
 
 # Servir archivos (opcional para ver en navegador)
 @app.route('/api/uploads/garantias/<filename>')
@@ -2658,6 +3275,7 @@ def enviar_alertas_garantias():
     alerta_fecha = hoy + timedelta(days=60)  # 2 meses antes
     print(f"[INFO] Fecha de alerta: {alerta_fecha}")
 
+    # Obtener garantías próximas a vencer
     garantias = Garantias.query.filter(Garantias.vigencia <= alerta_fecha).all()
     if not garantias:
         print("[INFO] No hay garantías próximas a vencer")
@@ -2665,9 +3283,9 @@ def enviar_alertas_garantias():
 
     alertas_generadas = []
 
-    # ----------------------------------------------------------------------------------
-    # Alertas para administradores
-    # ----------------------------------------------------------------------------------
+    # ----------------------------
+    # 1. Administradores
+    # ----------------------------
     admins = Usuarios.query.filter_by(rol='Administrador').all()
     emails_admin = [a.correo for a in admins if a.correo]
     print(f"[INFO] Total administradores con correo: {len(emails_admin)}")
@@ -2675,7 +3293,7 @@ def enviar_alertas_garantias():
     if emails_admin:
         lista_html = "".join([
             f"<li><strong>{g.unidad.version} {g.unidad.modelo}</strong> "
-            f"(ID {g.cve}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
+            f"(ID {g.unidad.cve}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
             for g in garantias
         ])
         cuerpo_html = f"<html><body><h2>Garantías próximas a vencer</h2><ul>{lista_html}</ul></body></html>"
@@ -2689,6 +3307,15 @@ def enviar_alertas_garantias():
         print("[INFO] Correos enviados a administradores")
 
         for g in garantias:
+            # Verificar si ya existe alerta para administradores
+            alerta_existente = Alerta.query.filter_by(
+                id_unidad=g.id_unidad,
+                tipo_alerta="garantia_vencimiento",
+                detalle={"rol": "Administrador"}
+            ).first()
+            if alerta_existente:
+                continue
+
             alerta = Alerta(
                 id_unidad=g.id_unidad,
                 tipo_alerta="garantia_vencimiento",
@@ -2699,9 +3326,9 @@ def enviar_alertas_garantias():
             db.session.add(alerta)
             alertas_generadas.append(alerta)
 
-    # ----------------------------------------------------------------------------------
-    # Alertas para choferes asignados
-    # ----------------------------------------------------------------------------------
+    # ----------------------------
+    # 2. Choferes asignados
+    # ----------------------------
     choferes = Usuarios.query.filter_by(rol="Conductor").all()
     print(f"[INFO] Total choferes: {len(choferes)}")
 
@@ -2710,8 +3337,9 @@ def enviar_alertas_garantias():
             print(f"[CHOFER] Usuario {user.id_usuario} sin correo, se omite")
             continue
 
-        # Obtener id_chofer real
         id_chofer_real = user.chofer.id_chofer if user.chofer else None
+        if not id_chofer_real:
+            continue
 
         # Vehículos asignados al chofer
         asignaciones = Asignaciones.query.filter(
@@ -2728,7 +3356,7 @@ def enviar_alertas_garantias():
 
         lista_html = "".join([
             f"<li><strong>{g.unidad.version} {g.unidad.modelo}</strong> "
-            f"(ID {g.cve}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
+            f"(ID {g.unidad.cve}): póliza {g.no_poliza}, vence {g.vigencia}</li>"
             for g in garantias_user
         ])
         cuerpo_html = f"<html><body><h2>Garantías próximas a vencer de sus unidades</h2><ul>{lista_html}</ul></body></html>"
@@ -2742,6 +3370,15 @@ def enviar_alertas_garantias():
         print(f"[CHOFER] Correo enviado a {user.correo}")
 
         for g in garantias_user:
+            # Verificar si ya existe alerta para este chofer y unidad
+            alerta_existente = Alerta.query.filter_by(
+                id_unidad=g.id_unidad,
+                tipo_alerta="garantia_vencimiento",
+                detalle={"id_chofer": id_chofer_real, "rol": "Conductor"}
+            ).first()
+            if alerta_existente:
+                continue
+
             alerta = Alerta(
                 id_unidad=g.id_unidad,
                 tipo_alerta="garantia_vencimiento",
@@ -2751,8 +3388,6 @@ def enviar_alertas_garantias():
             )
             db.session.add(alerta)
             alertas_generadas.append(alerta)
-
-
 
     db.session.commit()
     print(f"[INFO] Total alertas registradas: {len(alertas_generadas)}")
@@ -3007,15 +3642,8 @@ def crear_verificacion():
             existing.folio_verificacion = data.get('folio_verificacion', '')
             existing.engomado = engomado
 
-            alertas = Alerta.query.filter_by(
-                id_unidad=data['id_unidad'],
-                tipo_alerta='verificacion',
-                estado='pendiente'
-            ).all()
+           
 
-            for alerta in alertas:
-                alerta.estado = 'completada'
-                alerta.fecha_completada = datetime.now()
 
         else:
             nueva = VerificacionVehicular(
@@ -3034,6 +3662,26 @@ def crear_verificacion():
             db.session.add(nueva)
 
         db.session.commit()
+         # ---------------- Cerrar y limpiar alertas de verificación ----------------
+        id_unidad_int = int(data['id_unidad'])
+
+        alertas = Alerta.query.filter(
+            Alerta.id_unidad == id_unidad_int,
+            Alerta.tipo_alerta == "verificacion"
+        ).order_by(Alerta.fecha_generada.desc()).all()
+
+        if alertas:
+            alerta_mas_reciente = alertas[0]
+
+            # Marcar SOLO la más reciente como completada
+            alerta_mas_reciente.estado = "completada"
+            alerta_mas_reciente.fecha_resuelta = datetime.now()
+
+            # Eliminar todas las demás
+            for alerta in alertas[1:]:
+                db.session.delete(alerta)
+        db.session.commit()
+
         return jsonify({
             "mensaje": f"Verificación del periodo {periodo} registrada correctamente"
         }), 201
@@ -3044,6 +3692,29 @@ def crear_verificacion():
             "error": "Error al registrar la verificación"
         }), 500
 
+
+@app.route('/api/verificaciones/<int:id_verificacion>', methods=['DELETE'])
+def desactivar_verificacion(id_verificacion):
+    try:
+        verificacion = VerificacionVehicular.query.get(id_verificacion)
+        if not verificacion:
+            return jsonify({"error": "Verificación no encontrada"}), 404
+
+        # Solo cambiar el estado a 0
+        verificacion.estado = 0
+        db.session.commit()
+
+        return jsonify({"message": "Verificación desactivada correctamente"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "error": "No fue posible desactivar la verificación",
+            "detalle": str(e)
+        }), 500
+
+
+"""
 @app.route('/api/verificaciones/<int:id_verificacion>', methods=['DELETE'])
 def eliminar_verificacion(id_verificacion):
     UPLOAD_FOLDER = 'uploads/verificaciones'
@@ -3122,6 +3793,8 @@ def eliminar_verificacion(id_verificacion):
             "error": "No fue posible eliminar la verificación"
         }), 500
 
+"""
+
 
 @app.route('/api/calendario', methods=['GET'])
 def obtener_calendario():
@@ -3134,6 +3807,7 @@ def obtener_calendario():
     # Convertir a lista de objetos
     calendario = [{"mes": mes, "color": colores} for mes, colores in calendario_dict.items()]
     return jsonify(calendario)
+    
 
 @app.route('/api/calendario', methods=['POST'])
 def actualizar_calendario():
@@ -3321,6 +3995,7 @@ def obtener_verificaciones():
             FROM VerificacionVehicular V
             JOIN Unidades U ON V.id_unidad = U.id_unidad
             LEFT JOIN Placas P ON P.id_unidad = U.id_unidad
+            WHERE V.estado = 1
             ORDER BY V.id_verificacion DESC;
         """
         cursor.execute(query)
@@ -3342,7 +4017,11 @@ def obtener_verificaciones():
             if fecha_base_str:
                 fecha_base = datetime.strptime(fecha_base_str, "%Y-%m-%d").date()
                 engomado = fila_dict.get('engomado', '')
-                fila_dict['proxima_verificacion'] = calcular_siguiente_verificacion(fecha_base, fila_dict.get('holograma', ''), fila_dict.get('engomado', '')).strftime("%Y-%m-%d")
+                fila_dict['proxima_verificacion'] = calcular_siguiente_verificacion(
+                    fecha_base, 
+                    fila_dict.get('holograma', ''), 
+                    fila_dict.get('engomado', '')
+                ).strftime("%Y-%m-%d")
             else:
                 fila_dict['proxima_verificacion'] = None
 
@@ -3445,7 +4124,7 @@ def enviar_alertas_verificacion():
             continue
 
         # Guardar fecha siguiente en la verificación (opcional)
-        v.proxima_verificacion = fecha_siguiente  # Si agregas este campo en el modelo
+        v.proxima_verificacion = fecha_siguiente
 
         if hoy + anticipacion >= fecha_siguiente:
             proximas_alertas.append((v, fecha_siguiente))
@@ -3478,33 +4157,35 @@ def enviar_alertas_verificacion():
         mail.send(msg_admin)
         print(f"✅ Correos enviados a administradores: {emails_admin}")
 
-        # Crear alertas en BD para admins
+        # Guardar alertas **una sola por unidad**
+        alertas_admin_creadas = set()
         for v, fecha in proximas_alertas:
-            alerta = Alerta(
-                id_unidad=v.id_unidad,
-                tipo_alerta="verificacion",
-                descripcion=f"Unidad {v.unidad.cve} requiere verificación antes del {fecha}",
-                estado="pendiente",
-                detalle={
-                    "rol": "Administrador",
-                    "holograma": v.holograma,
-                    "engomado": v.engomado
-                }
-            )
-            db.session.add(alerta)
-            alertas_generadas.append(alerta)
+            if v.id_unidad not in alertas_admin_creadas:
+                alerta = Alerta(
+                    id_unidad=v.id_unidad,
+                    tipo_alerta="verificacion",
+                    descripcion=f"Unidad {v.unidad.cve} requiere verificación antes del {fecha}",
+                    estado="pendiente",
+                    detalle={
+                        "rol": "Administrador",
+                        "holograma": v.holograma,
+                        "engomado": v.engomado
+                    }
+                )
+                db.session.add(alerta)
+                alertas_generadas.append(alerta)
+                alertas_admin_creadas.add(v.id_unidad)
 
     # --- 3. Choferes ---
     choferes = Usuarios.query.filter_by(rol='Conductor').all()
+    alertas_chofer_creadas = set()  # Para evitar duplicados por placa/chofer
+
     for user in choferes:
-        if not user.correo:
+        if not user.correo or not user.chofer:
             continue
 
-        id_chofer_real = user.chofer.id_chofer if user.chofer else None
-        if not id_chofer_real:
-            continue
+        id_chofer_real = user.chofer.id_chofer
 
-        # Filtrar asignaciones activas por id_usuario
         asignaciones_activas = Asignaciones.query.filter(
             Asignaciones.id_usuario == user.id_usuario,
             (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
@@ -3516,10 +4197,9 @@ def enviar_alertas_verificacion():
         if not vehiculos_usuario:
             continue
 
-        # Enviar correo
+        # Enviar correo al chofer
         lista_usuario_html = "".join([
-            f"<li>Unidad: <strong>{v.unidad.cve}</strong> | "
-            f"Próxima verificación: {fecha} | "
+            f"<li>Unidad: <strong>{v.unidad.cve}</strong> | Próxima verificación: {fecha} | "
             f"Holograma: {v.holograma} | Engomado: {v.engomado}</li>"
             for v, fecha in vehiculos_usuario
         ])
@@ -3532,28 +4212,30 @@ def enviar_alertas_verificacion():
         mail.send(msg_usuario)
         print(f"✅ Correo enviado a chofer {user.id_usuario} - {user.correo}")
 
-        # Crear alertas en BD usando id_chofer_real
+        # Guardar alertas por placa/chofer
         for v, fecha in vehiculos_usuario:
-            alerta = Alerta(
-                id_unidad=v.id_unidad,
-                tipo_alerta="verificacion",
-                descripcion=f"Su unidad {v.unidad.cve} requiere verificación antes del {fecha}",
-                estado="pendiente",
-                detalle={
-                    "rol": "Conductor",
-                    "id_chofer": id_chofer_real,
-                    "holograma": v.holograma,
-                    "engomado": v.engomado
-                }
-            )
-            db.session.add(alerta)
-            alertas_generadas.append(alerta)
+            key = (v.id_unidad, id_chofer_real)
+            if key not in alertas_chofer_creadas:
+                alerta = Alerta(
+                    id_unidad=v.id_unidad,
+                    tipo_alerta="verificacion",
+                    descripcion=f"Su unidad {v.unidad.cve} requiere verificación antes del {fecha}",
+                    estado="pendiente",
+                    detalle={
+                        "rol": "Conductor",
+                        "id_chofer": id_chofer_real,
+                        "holograma": v.holograma,
+                        "engomado": v.engomado
+                    }
+                )
+                db.session.add(alerta)
+                alertas_generadas.append(alerta)
+                alertas_chofer_creadas.add(key)
 
-    # Commit final para todas las alertas
+    # Commit final
     db.session.commit()
     print(f"✅ Envío de alertas de verificación completado, total alertas: {len(alertas_generadas)}")
     return alertas_generadas
-
 
 # ===============================================================================================
 # SOLICITUDES DE FALLA MECÁNICA
@@ -3624,11 +4306,12 @@ def crear_solicitud():
     print("\n===== Crear Solicitud =====")
 
     data = request.form
-    archivos = request.files.getlist("comprobante")  # 👈 AHORA ES LISTA
+    archivos = request.files.getlist("comprobante")
 
     print("FORM DATA:", dict(data))
     print("ARCHIVOS:", [a.filename for a in archivos])
 
+    # ===== Validar id_usuario =====
     id_usuario = data.get("id_usuario")
     if not id_usuario:
         return jsonify({"error": "Falta id_usuario"}), 400
@@ -3637,12 +4320,12 @@ def crear_solicitud():
     if not usuario:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
-    if not usuario.chofer:
-        return jsonify({"error": "El usuario no tiene chofer asociado"}), 400
+    # ===== Determinar chofer =====
+    id_chofer_real = None
+    if usuario.chofer:
+        id_chofer_real = usuario.chofer.id_chofer
 
-    id_chofer_real = usuario.chofer.id_chofer
-
-    # ===== Guardar evidencias (MULTIPLE) =====
+    # ===== Guardar comprobantes (MULTIPLE) =====
     urls = []
 
     for archivo in archivos:
@@ -3654,18 +4337,18 @@ def crear_solicitud():
             archivo.save(ruta)
             urls.append(f"uploads/solicitudes/{nombre_archivo}")
 
-    # Guardar como JSON o NULL
     url_comprobante = json.dumps(urls) if urls else None
 
     # ===== Crear solicitud =====
     nueva = SolicitudFalla(
-        id_unidad=data.get("id_unidad"),
+        id_unidad=data.get("id_unidad") or None,
         id_pieza=data.get("id_pieza") or None,
         id_marca=data.get("id_marca") or None,
         tipo_servicio=data.get("tipo_servicio"),
         descripcion=data.get("descripcion", ""),
-        url_comprobante=url_comprobante,  # 👈 JSON
-        id_chofer=id_chofer_real
+        url_comprobante=url_comprobante,
+        id_usuario=id_usuario,        # 👈 SIEMPRE SE GUARDA
+        id_chofer=id_chofer_real      # 👈 SOLO SI EXISTE
     )
 
     db.session.add(nueva)
@@ -3674,9 +4357,10 @@ def crear_solicitud():
     return jsonify({
         "msg": "Solicitud creada correctamente",
         "id_solicitud": nueva.id_solicitud,
+        "id_usuario": id_usuario,
+        "id_chofer": id_chofer_real,
         "evidencias": urls
     }), 201
-
 
 # -------------------------------
 # Listar solicitudes pendientes (ADMIN)
@@ -3688,57 +4372,86 @@ def listar_todas_solicitudes():
         SolicitudFalla.fecha_solicitud.desc()
     ).all()
 
+
     resultado = []
 
     for s in solicitudes:
+
+
         unidad = db.session.get(Unidades, s.id_unidad)
         pieza = db.session.get(Piezas, s.id_pieza)
         marca = db.session.get(MarcasPiezas, s.id_marca)
 
-        chofer = db.session.get(Choferes, s.id_chofer)
-        nombre_chofer = chofer.nombre if chofer else "No especificado"
-        nombre_usuario = (
-            chofer.usuario.nombre if chofer and chofer.usuario else "No especificado"
-        )
+        # ===== RESOLVER USUARIO / CHOFER =====
+        nombre_chofer = "No especificado"
+        nombre_usuario = "No especificado"
 
-        # ===== NORMALIZAR EVIDENCIAS =====
+        # 1️⃣ PRIORIDAD: CHOFER
+        if s.id_chofer:
+            chofer = db.session.get(Choferes, s.id_chofer)
+
+            if chofer:
+                nombre_chofer = chofer.nombre
+
+                if chofer.usuario:
+                    nombre_usuario = chofer.usuario.nombre
+                else:
+                    print("⚠️ El chofer NO tiene usuario asociado")
+
+        # 2️⃣ SI NO HAY CHOFER → USUARIO
+        elif s.id_usuario:
+            usuario = db.session.get(Usuarios, s.id_usuario)
+
+            if usuario:
+                nombre_usuario = usuario.nombre
+
+        else:
+            print("❌ No hay id_chofer ni id_usuario")
+
+        # ===== EVIDENCIAS =====
         evidencias = []
         if s.url_comprobante:
             try:
                 evidencias = json.loads(s.url_comprobante)
-            except Exception:
+            except Exception as e:
+                print("⚠️ Error cargando evidencias:", e)
                 evidencias = []
 
-        # ===== VERIFICAR SI YA HAY FALLA =====
-        falla_existente = FallaMecanica.query.filter_by(id_solicitud=s.id_solicitud).first()
+        # ===== VALIDAR SI YA EXISTE FALLA =====
+        falla_existente = FallaMecanica.query.filter_by(
+            id_solicitud=s.id_solicitud
+        ).first()
         completada = True if falla_existente else False
+
 
         resultado.append({
             "id_solicitud": s.id_solicitud,
+
             "id_unidad": s.id_unidad,
             "unidad": unidad.version if unidad else "No especificada",
-           
             "cve": unidad.cve if unidad else "No especificada",
             "marca_auto": unidad.marca if unidad else "No especificada",
+
             "id_pieza": s.id_pieza,
             "pieza": pieza.nombre_pieza if pieza else "No especificada",
+
             "id_marca": s.id_marca,
             "marca": marca.nombre_marca if marca else "No especificada",
+
             "tipo_servicio": s.tipo_servicio,
             "descripcion": s.descripcion,
             "estado": s.estado,
 
-            # Evidencias
-            "evidencias": evidencias,
-
+            "id_usuario": s.id_usuario,
             "id_chofer": s.id_chofer,
+
             "chofer": {
                 "nombre_chofer": nombre_chofer,
                 "nombre_usuario": nombre_usuario
             },
-            "fecha_solicitud": s.fecha_solicitud.isoformat(),
 
-            # Completada si ya hay falla
+            "evidencias": evidencias,
+            "fecha_solicitud": s.fecha_solicitud.isoformat(),
             "completada": completada
         })
 
@@ -4084,7 +4797,9 @@ def detalle_falla(id_falla):
 
 @app.route("/api/reportes/unidades-mas-fallas", methods=["GET"])
 def reporte_unidades_mas_fallas():
-    resultados = (
+
+    # ===== RESUMEN POR UNIDAD (PARA GRÁFICA) =====
+    resumen = (
         db.session.query(
             Unidades.id_unidad,
             Unidades.cve,
@@ -4106,15 +4821,86 @@ def reporte_unidades_mas_fallas():
     )
 
     data = []
-    for r in resultados:
+
+    for r in resumen:
+        # ===== DETALLE DE FALLAS POR UNIDAD =====
+        fallas = (
+            db.session.query(
+                FallaMecanica.fecha_falla,
+                FallaMecanica.tipo_servicio,
+                FallaMecanica.descripcion,
+                FallaMecanica.costo,
+                Piezas.nombre_pieza,
+                MarcasPiezas.nombre_marca,
+                LugarReparacion.nombre_lugar
+            )
+            .outerjoin(Piezas, Piezas.id_pieza == FallaMecanica.id_pieza)
+            .outerjoin(MarcasPiezas, MarcasPiezas.id_marca == FallaMecanica.id_marca)
+            .outerjoin(LugarReparacion, LugarReparacion.id_lugar == FallaMecanica.id_lugar)
+            .filter(FallaMecanica.id_unidad == r.id_unidad)
+            .order_by(FallaMecanica.fecha_falla.desc())
+            .all()
+        )
+
         data.append({
+            # ===== DATOS PARA LA GRÁFICA (NO SE TOCAN) =====
             "id_unidad": r.id_unidad,
             "cve": r.cve,
             "marca": r.marca,
             "modelo": r.modelo,
             "total_fallas": r.total_fallas,
             "costo_total": float(r.costo_total),
-            "ultima_falla": r.ultima_falla.strftime("%Y-%m-%d") if r.ultima_falla else None
+            "ultima_falla": r.ultima_falla.strftime("%Y-%m-%d") if r.ultima_falla else None,
+
+            # ===== DETALLE PARA PDF =====
+            "fallas": [
+                {
+                    "fecha": f.fecha_falla.strftime("%Y-%m-%d"),
+                    "pieza": f.nombre_pieza,
+                    "marca_pieza": f.nombre_marca,
+                    "tipo_servicio": f.tipo_servicio,
+                    "descripcion": f.descripcion,
+                    "lugar": f.nombre_lugar,
+                    "costo": float(f.costo) if f.costo else 0
+                }
+                for f in fallas
+            ]
+        })
+
+    return jsonify(data), 200
+
+
+@app.route("/api/reportes/fallas-detalladas", methods=["GET"])
+def reporte_fallas_detalladas():
+    resultados = (
+        db.session.query(
+            Unidades.cve,
+            Unidades.marca,
+            Unidades.modelo,
+            FallaMecanica.fecha_falla,
+            FallaMecanica.tipo_servicio,
+            FallaMecanica.descripcion,
+            FallaMecanica.costo,
+            Piezas.nombre_pieza,
+            FallaMecanica.proveedor
+        )
+        .join(FallaMecanica, FallaMecanica.id_unidad == Unidades.id_unidad)
+        .outerjoin(Piezas, Piezas.id_pieza == FallaMecanica.id_pieza)
+        .order_by(Unidades.cve, FallaMecanica.fecha_falla.desc())
+        .all()
+    )
+
+    data = []
+    for r in resultados:
+        data.append({
+            "cve": r.cve,
+            "unidad": f"{r.marca} {r.modelo}",
+            "fecha": r.fecha_falla.strftime("%Y-%m-%d"),
+            "pieza": r.nombre_pieza,
+            "tipo_servicio": r.tipo_servicio,
+            "descripcion": r.descripcion,
+            "proveedor": r.proveedor,
+            "costo": float(r.costo) if r.costo else 0
         })
 
     return jsonify(data), 200
@@ -4398,7 +5184,7 @@ def crear_mensaje_solicitud():
         id_solicitud=id_solicitud,
         id_usuario=id_usuario,
         mensaje=mensaje,
-        fecha=datetime.utcnow()
+        fecha=datetime.now()
     )
 
     db.session.add(nuevo_mensaje)
@@ -4517,7 +5303,7 @@ def responder_solicitud():
 
     archivo_nombre = None
     if archivo and allowed_file(archivo.filename):
-        filename = secure_filename(f"{datetime.utcnow().timestamp()}_{archivo.filename}")
+        filename = secure_filename(f"{datetime.now().timestamp()}_{archivo.filename}")
         ruta_completa = os.path.join(UPLOAD_FOLDER, filename)
         archivo.save(ruta_completa)
         archivo_nombre = filename
@@ -4669,6 +5455,9 @@ def get_placas():
             Unidades.version
         ).join(Unidades, Placas.id_unidad == Unidades.id_unidad, isouter=True)
 
+        # Mostrar solo placas activas
+        query = query.filter(Placas.estado == 1)
+
         # Filtro de búsqueda
         if search:
             query = query.filter(
@@ -4698,7 +5487,6 @@ def get_placas():
             d["version"] = version
             placas.append(d)
 
-
         return jsonify({
             "total": placas_query.total,
             "page": page,
@@ -4708,8 +5496,6 @@ def get_placas():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 # ---------------------------
 # Endpoint para probar envío de correo manual
@@ -4754,7 +5540,9 @@ def enviar_alertas_semanales():
 
     alertas_generadas = []
 
-    # --- 1. Administradores ---
+    # -------------------------------
+    # 1. Administradores
+    # -------------------------------
     admins = Usuarios.query.filter_by(rol='Administrador').all()
     emails_admin = [a.correo for a in admins if a.correo]
     print(f"Administradores con correo: {emails_admin}")
@@ -4769,20 +5557,29 @@ def enviar_alertas_semanales():
         mail.send(msg_admin)
         print(f"✅ Correos enviados a administradores: {emails_admin}")
 
+        # Guardar alertas evitando duplicados por placa
+        alertas_admin_creadas = set()
         for p in placas_alerta:
-            alerta = Alerta(
-                id_unidad=p.id_unidad,
-                tipo_alerta="placa",
-                descripcion=f"La placa {p.placa} está próxima a vencer el {p.fecha_vigencia}",
-                estado="pendiente",
-                detalle={"id_placa": p.id_placa, "rol": "Administrador"}
-            )
-            db.session.add(alerta)
-            alertas_generadas.append(alerta)
+            key = p.id_placa
+            if key not in alertas_admin_creadas:
+                alerta = Alerta(
+                    id_unidad=p.id_unidad,
+                    tipo_alerta="placa",
+                    descripcion=f"La placa {p.placa} está próxima a vencer el {p.fecha_vigencia}",
+                    estado="pendiente",
+                    detalle={"id_placa": p.id_placa, "rol": "Administrador"}
+                )
+                db.session.add(alerta)
+                alertas_generadas.append(alerta)
+                alertas_admin_creadas.add(key)
 
-    # --- 2. Choferes ---
+    # -------------------------------
+    # 2. Choferes
+    # -------------------------------
     choferes = Usuarios.query.filter_by(rol='Conductor').all()
     print(f"Choferes encontrados: {[c.id_usuario for c in choferes]}")
+
+    alertas_chofer_creadas = set()
 
     for user in choferes:
         if not user.correo:
@@ -4808,6 +5605,7 @@ def enviar_alertas_semanales():
             print(f"[CHOFER] Usuario {user.id_usuario} no tiene placas próximas a vencer")
             continue
 
+        # Enviar correo al chofer
         lista_usuario_html = "".join([
             f"<li>Placa: <strong>{p.placa}</strong> | Unidad: {p.id_unidad} | Vence el: {p.fecha_vigencia}</li>"
             for p in placas_usuario
@@ -4821,21 +5619,28 @@ def enviar_alertas_semanales():
         mail.send(msg_usuario)
         print(f"✅ Correo enviado a chofer {user.id_usuario} - {user.correo}")
 
+        # Guardar alertas evitando duplicados por placa y chofer
         for p in placas_usuario:
-            alerta = Alerta(
-                id_unidad=p.id_unidad,
-                tipo_alerta="placa",
-                descripcion=f"La placa {p.placa} de su unidad está próxima a vencer el {p.fecha_vigencia}",
-                estado="pendiente",
-                detalle={"id_placa": p.id_placa, "id_chofer": id_chofer_real, "rol": "Conductor"}
-            )
-            db.session.add(alerta)
-            alertas_generadas.append(alerta)
+            key = (p.id_placa, id_chofer_real)
+            if key not in alertas_chofer_creadas:
+                alerta = Alerta(
+                    id_unidad=p.id_unidad,
+                    tipo_alerta="placa",
+                    descripcion=f"La placa {p.placa} de su unidad está próxima a vencer el {p.fecha_vigencia}",
+                    estado="pendiente",
+                    detalle={"id_placa": p.id_placa, "id_chofer": id_chofer_real, "rol": "Conductor"}
+                )
+                db.session.add(alerta)
+                alertas_generadas.append(alerta)
+                alertas_chofer_creadas.add(key)
 
-    # Commit final para todas las alertas
+    # -------------------------------
+    # Commit final
+    # -------------------------------
     db.session.commit()
     print(f"✅ Alertas registradas: {len(alertas_generadas)}")
     print("✅ Envío de alertas completado")
+    return alertas_generadas
 
 def guardar_archivo_unico(file, carpeta='placas'):
     """Guarda un archivo (imagen o PDF) con nombre único en la carpeta especificada."""
@@ -5026,14 +5831,37 @@ def registrar_o_actualizar_placa():
     ).all()
     for alerta in alertas_pendientes:
         alerta.estado = "completada"
-        alerta.fecha_resuelta = datetime.utcnow()
+        alerta.fecha_resuelta = datetime.now()
     db.session.commit()
 
     msg = "Placa actualizada correctamente" if placa_activa else "Placa registrada correctamente"
     return jsonify({"message": msg}), 200
 
 
+@app.route("/api/placas/<int:id_placa>", methods=["DELETE"])
+def eliminar_placa(id_placa):
+    placa = Placas.query.get(id_placa)
 
+    if not placa:
+        return jsonify({"error": "Placa no encontrada"}), 404
+
+    # Cambiar estado a 0 en lugar de eliminar
+    placa.estado = 0
+
+    # Actualizar unidad relacionada
+    unidad = Unidades.query.get(placa.id_unidad)
+    if unidad:
+        unidad.utilitario = "No utilitario"  # Ajusta según tu campo real
+        unidad.id_placa = None               # Limpia la relación
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Placa desactivada y unidad actualizada"
+    }), 200
+
+
+"""
 @app.route("/api/placas/<int:id_placa>", methods=["DELETE"])
 def eliminar_placa(id_placa):
     UPLOAD_DIR = 'uploads/placas/'
@@ -5067,7 +5895,7 @@ def eliminar_placa(id_placa):
 
     return jsonify({
         "message": "Placa eliminada, archivos borrados y unidad actualizada"
-    }), 200
+    }), 200 """
 
 # ---------------------------
 # Endpoint para consultar alertas
@@ -5274,32 +6102,163 @@ def historial_file(filename):
 
 
 
+
+@app.route('/api/dashboard/refrendo', methods=['GET'])
+def dashboard_refrendo():
+    conn = db.engine.raw_connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        anio_actual = date.today().year
+        fecha_limite = date(anio_actual, 3, 31)
+
+        # Todas las unidades activas
+        cursor.execute("SELECT id_unidad, cve, marca, modelo FROM Unidades WHERE estado=1")
+        unidades = cursor.fetchall()
+        total_unidades = len(unidades)
+
+        # Pagos de este año
+        cursor.execute("""
+            SELECT id_unidad, fecha_pago, limite_pago, url_factura
+            FROM Refrendo_Tenencia
+            WHERE YEAR(limite_pago) = %s
+        """, (anio_actual,))
+        pagos = cursor.fetchall()
+
+        pagos_dict = {row[0]: {"fecha_pago": row[1], "limite_pago": row[2], "url_factura": row[3]} for row in pagos}
+
+        data_actual = []
+        pendientes_anteriores = []
+
+        completos = al_corriente = pendientes = falta_doc = 0
+
+        for u in unidades:
+            pago = pagos_dict.get(u[0])
+            estado = "PENDIENTE"
+            fecha_pago = "-"
+            limite = "-"
+            monto = 0
+
+            if pago:
+                fecha_pago_val = pago["fecha_pago"]
+                limite_val = pago["limite_pago"]
+                url_factura = pago["url_factura"]
+
+                if fecha_pago_val and fecha_pago_val <= limite_val and limite_val.year == anio_actual:
+                    estado = "CORRIENTE"
+                    al_corriente += 1
+                elif limite_val.year < anio_actual:
+                    pendientes_anteriores.append({
+                        "cve": u[1],
+                        "unidad": f"{u[2]} {u[3]}",
+                        "ultimo_pago": fecha_pago_val.strftime("%Y-%m-%d") if fecha_pago_val else "N/A",
+                        "estado": "PENDIENTE"
+                    })
+                    continue
+
+                fecha_pago = fecha_pago_val.strftime("%Y-%m-%d") if fecha_pago_val else "-"
+                limite = limite_val.strftime("%Y-%m-%d") if limite_val else "-"
+                monto = 1500  # reemplazar con monto real si lo tienes
+
+                if url_factura:
+                    estado = "COMPLETO"
+                    completos += 1
+                elif limite_val.year == anio_actual:
+                    estado = "FALTA_DOC"
+                    falta_doc += 1
+            else:
+                pendientes += 1
+
+            data_actual.append({
+                "id_unidad": u[0],
+                "cve": u[1],
+                "unidad": f"{u[2]} {u[3]}",
+                "estado": estado,
+                "fecha_pago": fecha_pago,
+                "limite_pago": limite,
+                "monto": monto
+            })
+
+        # Avance mensual con unidades
+        avance_mensual = []
+        for mes in range(1, 13):
+            unidades_mes = []
+            count_mes = 0
+            for u in unidades:
+                pago = pagos_dict.get(u[0])
+                if pago and pago["fecha_pago"] and pago["fecha_pago"].month == mes and pago["fecha_pago"].year == anio_actual and pago["fecha_pago"] <= pago["limite_pago"]:
+                    unidades_mes.append(u[1])
+                    count_mes += 1
+            porcentaje = round((count_mes / total_unidades * 100) if total_unidades else 0, 1)
+            avance_mensual.append({
+                "mes": mes,
+                "al_corriente": count_mes,
+                "total": total_unidades,
+                "porcentaje": porcentaje,
+                "unidades": unidades_mes
+            })
+
+        return jsonify({
+            "total_unidades": total_unidades,
+            "completos": completos,
+            "al_corriente": al_corriente,
+            "pendientes": pendientes,
+            "falta_doc": falta_doc,
+            "data_actual": data_actual,
+            "pendientes_anteriores": pendientes_anteriores,
+            "avance_mensual": avance_mensual,
+            "anio": anio_actual,
+            "fecha_limite": fecha_limite.strftime("%Y-%m-%d")
+        })
+
+    except Exception as e:
+        print("Error dashboard refrendo:", e)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
+
 @app.route("/api/refrendo_tenencia/check/<int:id_unidad>", methods=["GET"])
 def check_unidad(id_unidad):
     hoy = date.today()
     year = hoy.year
 
-    # Buscar si ya hay registro de este año
+    print(f"===== DEBUG CHECK UNIDAD =====\nid_unidad: {id_unidad}")
+
+    # 1) Primero buscar registro incompleto (solo comprobante subido)
+    pago = Refrendo_Tenencia.query.filter_by(id_unidad=id_unidad, estado=0).first()
+
+    if pago:
+        print(f"Registro encontrado: {pago}")
+        return jsonify({
+            "ok": True,
+            "mensaje": "Ya se subió el comprobante, ahora puedes completar el registro",
+            "estado": "COMPROBANTE"
+        })
+
+    # 2) Luego buscar registro completo del año actual
     pago = Refrendo_Tenencia.query.filter(
         Refrendo_Tenencia.id_unidad == id_unidad,
         db.extract("year", Refrendo_Tenencia.fecha_pago) == year
     ).first()
 
     if pago:
+        print(f"Registro completo encontrado: {pago}")
         return jsonify({
             "ok": False,
-            "mensaje": "Ya existe un pago registrado para este año",
-            "refrendo": pago.tipo_pago in ["REFRENDO","AMBOS"],
-            "tenencia": pago.tipo_pago in ["TENENCIA","AMBOS"]
+            "mensaje": "Ya existe un pago completo registrado para este año",
+            "estado": "COMPLETO"
         })
 
-    # Si no existe, se puede registrar
+    # 3) No hay registro de este año, se puede subir comprobante
+    print("No hay registro para este año")
     return jsonify({
         "ok": True,
-        "mensaje": "Unidad disponible para registrar pago",
-        "refrendo": False,
-        "tenencia": False
+        "mensaje": "Unidad disponible para subir comprobante",
+        "estado": "NUEVO"
     })
+
 
 # ----------------------------
 # Funciones auxiliares
@@ -5345,128 +6304,146 @@ def move_file_to_historial(url):
     return os.path.join("uploads", "historial_refrendo_tenencia", nombre).replace("\\", "/")
 
 
-@app.route('/api/refrendo_tenencia', methods=['POST'])
+@app.route("/api/refrendo_tenencia", methods=["POST"])
 def registrar_pago():
-    data = request.form
-    try:
-        id_unidad = int(data.get('id_unidad'))
-        fecha_pago = datetime.strptime(data.get('fecha_pago'), '%Y-%m-%d').date()
-        monto_general = float(data.get('monto') or 0)
-        monto_refrendo = float(data.get('monto_refrendo') or 0)
-        monto_tenencia = float(data.get('monto_tenencia') or 0)
-        usuario = data.get('usuario', 'Sistema')
-    except Exception as e:
-        print("Error en los datos:", e)
-        return jsonify({"error": "Datos inválidos"}), 400
+    print("===== DEBUG REGISTRO DE PAGO =====")
+    print("Form data recibida:", request.form)
+    print("Archivos recibidos:", request.files)
 
+    file_pdf = request.files.get("url_factura")  # <-- archivo recibido
+    print("Archivo url_factura:", file_pdf)
+
+    data = request.form
+    estado = int(data.get("estado", 0))
+    id_unidad = int(data.get("id_unidad"))
     unidad = Unidades.query.get(id_unidad)
     if not unidad:
         return jsonify({"error": "Unidad no encontrada"}), 404
 
-    limite_pago = date(fecha_pago.year, 3, 31)
-    reset_realizado = False
+    # -----------------------------
+    # PRIMER PASO: SOLO COMPROBANTE
+    # -----------------------------
 
-    # 1) Verificar si ya existe pago de este año
-    existe_refrendo = Refrendo_Tenencia.query.filter(
-        Refrendo_Tenencia.id_unidad == id_unidad,
-        db.extract('year', Refrendo_Tenencia.fecha_pago) == fecha_pago.year
-    ).first()
+    if estado == 0:
+        if not file_pdf:
+            return jsonify({"error": "Debes subir un comprobante"}), 400
 
-    if existe_refrendo:
-        return jsonify({"error": "Ya existe un pago registrado para este año"}), 400
+        # Buscar registro previo del mismo año
+        hoy = date.today()
+        year = hoy.year
+        limite_pago = date(year, 3, 31)  # <-- aseguramos que siempre tenga valor
 
-    # 2) Buscar registro previo
-    registro = Refrendo_Tenencia.query.filter_by(id_unidad=id_unidad).first()
+        registro = Refrendo_Tenencia.query.filter(
+            Refrendo_Tenencia.id_unidad == id_unidad,
+            db.extract("year", Refrendo_Tenencia.fecha_pago) == year
+        ).first()
 
-    if registro and registro.fecha_pago and registro.fecha_pago.year < fecha_pago.year:
-        print("Registro previo encontrado, moviendo a historial y reseteando...")
+        if registro:
+            return jsonify({"error": "Ya existe un pago registrado para este año"}), 400
 
-        # MOVER ARCHIVO ANTES DE RESET
-        ruta_historial = move_file_to_historial(registro.url_factura)
+        # Crear o actualizar registro PENDIENTE
+        registro = Refrendo_Tenencia.query.filter_by(id_unidad=id_unidad).first()
+        if registro:
+            # Mover factura vieja al historial
+            ruta_historial = move_file_to_historial(registro.url_factura)
+            ruta_comprobante = move_file_to_historial(registro.url_comprobante)
 
-        historial = Historial_Refrendo_Tenencia(
-            id_pago=registro.id_pago,
-            id_unidad=registro.id_unidad,
-            tipo_pago=registro.tipo_pago,
-            monto=registro.monto,
-            monto_refrendo=registro.monto_refrendo,
-            monto_tenencia=registro.monto_tenencia,
-            fecha_pago=registro.fecha_pago,
-            url_factura=ruta_historial,     # ✔ YA MOVIDO
-            observaciones=registro.observaciones,
-            tipo_movimiento="REGISTRO",
-            usuario_registro=usuario
-        )
-        db.session.add(historial)
+            if ruta_historial:
+                historial = Historial_Refrendo_Tenencia(
+                    id_pago=registro.id_pago,
+                    id_unidad=registro.id_unidad,
+                    tipo_pago=registro.tipo_pago,
+                    monto=registro.monto,
+                    monto_refrendo=registro.monto_refrendo,
+                    monto_tenencia=registro.monto_tenencia,
+                    fecha_pago=registro.fecha_pago,
+                    url_factura=ruta_historial,
+                    url_comprobante=ruta_comprobante,
+                    observaciones=registro.observaciones,
+                    tipo_movimiento="REGISTRO",
+                    usuario_registro=data.get("usuario", "Sistema")
+                )
+                db.session.add(historial)
 
-        # Resetear registro
-        registro.monto = 0
-        registro.monto_refrendo = 0
-        registro.monto_tenencia = 0
-        registro.fecha_pago = None
-        registro.tipo_pago = 'PENDIENTE'
-        registro.observaciones = None
-        registro.url_factura = None
-        db.session.commit()
+            registro.tipo_pago = "PENDIENTE"
+            registro.monto = 0
+            registro.monto_refrendo = 0
+            registro.monto_tenencia = 0
+            registro.fecha_pago = None
+            registro.limite_pago = limite_pago  # <-- agregado
+            registro.observaciones = None
+            registro.url_factura = None
+        else:
+            registro = Refrendo_Tenencia(
+                id_unidad=id_unidad,
+                tipo_pago="PENDIENTE",
+                monto=0,
+                limite_pago=limite_pago  # <-- agregado
+            )
 
-        reset_realizado = True
-        print("Fila reseteada correctamente")
-
-    # 3) Actualizar o crear registro
-    if registro and reset_realizado:
-        print("Actualizando registro reseteado con nuevos datos...")
-        registro.fecha_pago = fecha_pago
-        registro.limite_pago = limite_pago
-        registro.tipo_pago = 'REFRENDO' if fecha_pago <= limite_pago else 'AMBOS'
-        registro.monto_refrendo = monto_refrendo or monto_general
-        registro.monto_tenencia = monto_tenencia or monto_general
-        registro.monto = (monto_refrendo or monto_general) + (monto_tenencia or monto_general)
-        registro.observaciones = data.get('observaciones')
-
-    elif not registro:
-        print("Creando nuevo registro...")
-        registro = Refrendo_Tenencia(
-            id_unidad=id_unidad,
-            fecha_pago=fecha_pago,
-            limite_pago=limite_pago,
-            tipo_pago='REFRENDO' if fecha_pago <= limite_pago else 'AMBOS',
-            monto_refrendo=monto_refrendo or monto_general,
-            monto_tenencia=monto_tenencia or monto_general,
-            monto=(monto_refrendo or monto_general) + (monto_tenencia or monto_general),
-            observaciones=data.get('observaciones')
-        )
+        registro.url_comprobante = save_uploaded_file(file_pdf, id_unidad, hoy)
+        registro.estado = 0
         db.session.add(registro)
+        db.session.commit()
+        return jsonify({"message": "Comprobante registrado correctamente"}), 200
 
-    # 4) Guardar PDF nuevo
-    file_pdf = request.files.get('url_factura')
+    # -----------------------------
+    # SEGUNDO PASO: REGISTRO COMPLETO
+    # -----------------------------
+    fecha_pago = datetime.strptime(data.get("fecha_pago"), "%Y-%m-%d").date()
+    monto_general = float(data.get("monto") or 0)
+    monto_refrendo = float(data.get("monto_refrendo") or 0)
+    monto_tenencia = float(data.get("monto_tenencia") or 0)
+    observaciones = data.get("observaciones")
+    usuario = data.get("usuario", "Sistema")
+
+    limite_pago = date(fecha_pago.year, 3, 31)
+    tipo_pago = "REFRENDO" if fecha_pago <= limite_pago else "AMBOS"
+
+    # Tomar registro pendiente
+    registro = Refrendo_Tenencia.query.filter_by(id_unidad=id_unidad, estado=0).first()
+    if not registro:
+        return jsonify({"error": "Primero debes subir el comprobante"}), 400
+
+    registro.fecha_pago = fecha_pago
+    registro.limite_pago = limite_pago
+    registro.tipo_pago = tipo_pago
+    registro.monto = monto_general
+    registro.monto_refrendo = monto_refrendo
+    registro.monto_tenencia = monto_tenencia
+    registro.observaciones = observaciones
+    registro.estado = 1  # ahora completo
+
+    # Guardar PDF adicional si se envía
     if file_pdf:
-        ruta_nueva = save_uploaded_file(file_pdf, id_unidad, fecha_pago)
-        registro.url_factura = ruta_nueva
+        registro.url_factura = save_uploaded_file(file_pdf, id_unidad, fecha_pago)
 
     db.session.commit()
-    print(f"Pago registrado correctamente: ID {registro.id_pago}, Tipo {registro.tipo_pago}")
 
-    # ---------------------------------------------------
-    # 5) MARCAR ALERTAS COMO COMPLETADAS (AGREGADO AQUÍ)
-    # ---------------------------------------------------
-    alertas = Alerta.query.filter_by(
-        id_unidad=id_unidad,
-        tipo_alerta="refrendo_tenencia",
-        estado="pendiente"
-    ).all()
+    id_unidad_int = int(id_unidad)
 
-    for alerta in alertas:
-        alerta.estado = "completada"
-        alerta.fecha_resuelta = datetime.utcnow()
+    alertas = Alerta.query.filter(
+        Alerta.id_unidad == id_unidad_int,
+        Alerta.tipo_alerta == "refrendo_tenencia",
+    ).order_by(Alerta.fecha_generada.desc()).all()
+
+    if alertas:
+        alerta_mas_reciente = alertas[0]
+
+        # Marcar SOLO la más reciente como completada
+        alerta_mas_reciente.estado = "completada"
+        alerta_mas_reciente.fecha_resuelta = datetime.now()
+
+        # Eliminar todas las demás
+        for alerta in alertas[1:]:
+            db.session.delete(alerta)
 
     db.session.commit()
-    # ---------------------------------------------------
 
-    return jsonify({
-        "message": f"Pago {registro.tipo_pago} registrado correctamente",
-        "id_pago": registro.id_pago
-    }), 200
-
+    return jsonify({"message": "Pago registrado completamente", "id_pago": registro.id_pago}), 200
+ 
+ 
+ 
 
 @app.route('/api/refrendo_tenencia', methods=['GET'])
 def listar_pagos_refrendo_tenencia():
@@ -5510,6 +6487,7 @@ def listar_pagos_refrendo_tenencia():
                 "usuario": getattr(pago, "usuario", ""),
                 "observaciones": pago.observaciones or "",
                 "url_factura": pago.url_factura,
+                "url_comprobante": pago.url_comprobante,
                 "limite_pago": pago.limite_pago.strftime('%Y-%m-%d') if pago.limite_pago else "",
                 "fecha_creacion": pago.fecha_creacion.strftime('%Y-%m-%d %H:%M:%S') if pago.fecha_creacion else ""
             })
@@ -5618,6 +6596,7 @@ def get_historiales():
                 "monto_tenencia": float(h.monto_tenencia) if h.monto_tenencia else 0,
                 "fecha_pago": h.fecha_pago.strftime("%Y-%m-%d") if h.fecha_pago else None,
                 "url_factura": h.url_factura,            # <-- AHORA SOLO UNO
+                "url_comprobante": h.url_comprobante,  # <-- NUEVO CAMPO
                 "observaciones": h.observaciones,
                 "fecha_registro": h.fecha_registro.strftime("%Y-%m-%d %H:%M:%S") if h.fecha_registro else None,
                 "tipo_movimiento": h.tipo_movimiento,    # <-- SE MANTIENE
@@ -5695,16 +6674,22 @@ def enviar_alertas_refrendo_tenencia():
         mail.send(msg)
         print("[INFO] Correos enviados a administradores")
 
+        alertas_admin_creadas = set()
+
         for p in pendientes:
-            alerta = Alerta(
-                id_unidad=p["id_unidad"],
-                tipo_alerta="refrendo_tenencia",
-                descripcion=f"La unidad {p['vehiculo']} {p['modelo']} ({p['cve']}) requiere pago: {p['mensaje']}",
-                estado="pendiente",
-                detalle={"rol": "Administrador"}
-            )
-            db.session.add(alerta)
-            alertas_generadas.append(alerta)
+            key = p["id_unidad"]
+            if key not in alertas_admin_creadas:
+                alerta = Alerta(
+                    id_unidad=p["id_unidad"],
+                    tipo_alerta="refrendo_tenencia",
+                    descripcion=f"La unidad {p['vehiculo']} {p['modelo']} ({p['cve']}) requiere pago: {p['mensaje']}",
+                    estado="pendiente",
+                    detalle={"rol": "Administrador"}
+                )
+                db.session.add(alerta)
+                alertas_generadas.append(alerta)
+                alertas_admin_creadas.add(key)
+
 
     # ----------------------------------------------------------------------------------
     # 3. Alertas para choferes
@@ -5814,13 +6799,31 @@ def post_tipo():
 @app.route('/api/frecuencias_pormarca', methods=['GET'])
 def get_frecuencias():
     filas = FrecuenciasPorMarca.query.all()
-    return jsonify([{
-        "id_frecuencia": f.id_frecuencia,
-        "marca": f.marca,
-        "id_tipo_mantenimiento": f.id_tipo_mantenimiento,
-        "frecuencia_tiempo": f.frecuencia_tiempo,
-        "frecuencia_kilometraje": f.frecuencia_kilometraje
-    } for f in filas])
+
+    resultados = []
+    for f in filas:
+        # Obtener la unidad asociada
+        unidad = db.session.get(Unidades, f.id_unidad)
+        if unidad:
+            unidad_info = {
+                "cve": unidad.cve,
+                "marca": unidad.marca,
+                "version": unidad.version,
+                "modelo": unidad.modelo
+            }
+        else:
+            unidad_info = None
+
+        resultados.append({
+            "id_frecuencia": f.id_frecuencia,
+            "unidad": unidad_info,
+            "id_tipo_mantenimiento": f.id_tipo_mantenimiento,
+            "frecuencia_tiempo": f.frecuencia_tiempo,
+            "frecuencia_kilometraje": f.frecuencia_kilometraje
+        })
+
+    return jsonify(resultados), 200
+
 
 
 @app.route('/api/frecuencias_pormarca', methods=['POST'])
@@ -5878,8 +6881,8 @@ def programar_por_marca(id_unidad):
 def enviar_alertas_mantenimientos():
     print("📌 Iniciando envío de alertas de mantenimientos")
     hoy = date.today()
-    anticipacion_dias = 25  # alertar 15 días antes
-    anticipacion_km = 700   # alertar 500 km antes
+    anticipacion_dias = 30  # alertar 25 días antes
+    anticipacion_km = 700   # alertar 700 km antes
 
     # --- 1. Traer todos los mantenimientos programados ---
     mantenimientos = MantenimientosProgramados.query.all()
@@ -5900,7 +6903,7 @@ def enviar_alertas_mantenimientos():
         admins = Usuarios.query.filter_by(rol='Administrador').all()
         emails_admin = [a.correo for a in admins if a.correo]
         if emails_admin:
-            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (ID {m.cve}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje}</li>"
+            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (CVE {m.unidad.cve}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje} Tipo: {m.tipo_mantenimiento.nombre_tipo}</li>"
             cuerpo_html = f"<html><body><h2>Mantenimientos próximos</h2><ul>{lista_html}</ul></body></html>"
             msg = Message(
                 subject="Alertas de mantenimiento próximo",
@@ -5908,12 +6911,14 @@ def enviar_alertas_mantenimientos():
                 html=cuerpo_html
             )
             mail.send(msg)
-            print(f"[INFO] Correo enviados a administradores: {emails_admin}")
+            print(f"[INFO] Correos enviados a administradores: {emails_admin}")
 
             alerta_admin = Alerta(
                 id_unidad=m.id_unidad,
                 tipo_alerta="mantenimiento",
-                descripcion=f"Mantenimiento próximo: Fecha {m.proximo_mantenimiento}, Kilometraje {m.proximo_kilometraje}",
+                descripcion=f"Mantenimiento próximo: Fecha {m.proximo_mantenimiento}, "
+                            f"Kilometraje {m.proximo_kilometraje}, "
+                            f"Tipo {m.tipo_mantenimiento.nombre_tipo}",
                 estado="pendiente",
                 detalle={"rol": "Administrador"}
             )
@@ -5926,6 +6931,9 @@ def enviar_alertas_mantenimientos():
             (Asignaciones.fecha_fin == None) | (Asignaciones.fecha_fin >= hoy)
         ).all()
 
+        # Evitar enviar varias veces al mismo chofer por unidad
+        choferes_alertados = set()
+
         for a in asignaciones:
             if not a.chofer or not a.chofer.usuario.correo:
                 continue
@@ -5933,7 +6941,12 @@ def enviar_alertas_mantenimientos():
             user = a.chofer.usuario
             id_chofer_real = a.chofer.id_chofer
 
-            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (ID {m.cve}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje}</li>"
+            # Evitar duplicados
+            if id_chofer_real in choferes_alertados:
+                continue
+            choferes_alertados.add(id_chofer_real)
+
+            lista_html = f"<li>Unidad {m.unidad.version} {m.unidad.modelo} (CVE {m.unidad.cve}) - Próximo mantenimiento: {m.proximo_mantenimiento}, Próximo km: {m.proximo_kilometraje} Tipo: {m.tipo_mantenimiento.nombre_tipo}</li>"
             cuerpo_html = f"<html><body><h2>Mantenimiento próximo de sus unidades</h2><ul>{lista_html}</ul></body></html>"
             msg = Message(
                 subject="Mantenimiento próximo de su unidad",
@@ -5956,6 +6969,8 @@ def enviar_alertas_mantenimientos():
     db.session.commit()
     print(f"[INFO] Total alertas registradas: {len(alertas_generadas)}")
     return alertas_generadas
+
+
 
 # ---------------------
 # RUTAS: Listar programados
@@ -6096,8 +7111,9 @@ def registrar_mantenimiento():
     )
     db.session.add(nuevo)
 
+    # --- CAMBIO: frecuencia ahora por unidad ---
     frecuencia = FrecuenciasPorMarca.query.filter_by(
-        marca=unidad.marca, 
+        id_unidad=id_unidad, 
         id_tipo_mantenimiento=tipo.id_tipo_mantenimiento
     ).first()
 
@@ -6135,6 +7151,102 @@ def registrar_mantenimiento():
     return jsonify({"message":"Mantenimiento registrado y programado actualizado."}), 201
 
 
+
+
+
+@app.route("/api/mantenimientos/inicial", methods=["POST"])
+def crear_mantenimiento_inicial():
+    # Obtener datos del request (JSON o FormData)
+    try:
+        data = request.get_json() or request.form
+        print("=== DATOS RECIBIDOS ===")
+        for k, v in data.items():
+            print(f"{k}: {v} ({type(v)})")
+        print("=======================")
+    except Exception as e:
+        return jsonify({"error": "No se pudieron leer los datos", "detalle": str(e)}), 400
+
+    # --- Validación y conversión de tipos ---
+    try:
+        id_unidad = int(data.get("id_unidad"))
+        id_tipo_mantenimiento = int(data.get("id_tipo_mantenimiento"))
+        frecuencia_tiempo = int(data.get("frecuencia_tiempo"))
+        frecuencia_kilometraje = int(data.get("frecuencia_kilometraje"))
+        kilometraje_ultimo = int(data.get("kilometraje_ultimo"))
+        fecha_ultimo_str = data.get("fecha_ultimo")
+        fecha_ultimo = datetime.strptime(fecha_ultimo_str, "%Y-%m-%d").date()
+    except (TypeError, ValueError) as e:
+        print(f"Error de conversión de tipos: {e}")
+        return jsonify({"error": "Datos inválidos o incompletos", "detalle": str(e)}), 400
+
+    # --- Verificar que la unidad exista ---
+    unidad = db.session.get(Unidades, id_unidad)
+    if not unidad:
+        return jsonify({"error": f"Unidad con id {id_unidad} no encontrada"}), 404
+
+    # --- Verificar que el tipo de mantenimiento exista ---
+    tipo = db.session.get(TiposMantenimiento, id_tipo_mantenimiento)
+    if not tipo:
+        return jsonify({"error": f"Tipo de mantenimiento con id {id_tipo_mantenimiento} no encontrado"}), 404
+
+    # --- Validar que no exista un mantenimiento igual para la unidad ---
+    existente = MantenimientosProgramados.query.filter_by(
+        id_unidad=id_unidad,
+        id_tipo_mantenimiento=id_tipo_mantenimiento
+    ).first()
+    if existente:
+        return jsonify({
+            "error": "Esta unidad ya tiene registrado este tipo de mantenimiento",
+            "mantenimiento": tipo.nombre_tipo
+        }), 409
+
+    # --- Guardar o actualizar la frecuencia por unidad ---
+    frecuencia = FrecuenciasPorMarca.query.filter_by(
+        id_unidad=id_unidad,
+        id_tipo_mantenimiento=id_tipo_mantenimiento
+    ).first()
+
+    if not frecuencia:
+        print("Creando nueva frecuencia por unidad")
+        frecuencia = FrecuenciasPorMarca(
+            id_unidad=id_unidad,
+            id_tipo_mantenimiento=id_tipo_mantenimiento,
+            frecuencia_tiempo=frecuencia_tiempo,
+            frecuencia_kilometraje=frecuencia_kilometraje
+        )
+        db.session.add(frecuencia)
+    else:
+        print("Actualizando frecuencia existente")
+        frecuencia.frecuencia_tiempo = frecuencia_tiempo
+        frecuencia.frecuencia_kilometraje = frecuencia_kilometraje
+
+    # --- Calcular próximo mantenimiento ---
+    proximo_mantenimiento = fecha_ultimo + timedelta(days=frecuencia_tiempo)
+    proximo_kilometraje = kilometraje_ultimo + frecuencia_kilometraje
+    print(f"Proximo mantenimiento: {proximo_mantenimiento}, Proximo km: {proximo_kilometraje}")
+
+    # --- Crear registro de mantenimiento programado ---
+    mantenimiento = MantenimientosProgramados(
+        id_unidad=id_unidad,
+        id_tipo_mantenimiento=id_tipo_mantenimiento,
+        fecha_ultimo_mantenimiento=fecha_ultimo,
+        kilometraje_ultimo=kilometraje_ultimo,
+        proximo_mantenimiento=proximo_mantenimiento,
+        proximo_kilometraje=proximo_kilometraje
+    )
+
+    try:
+        db.session.add(mantenimiento)
+        db.session.commit()
+        print("Mantenimiento inicial creado correctamente")
+        return jsonify({
+            "msg": "Mantenimiento inicial creado correctamente",
+            "id_mantenimiento_programado": mantenimiento.id_mantenimiento_programado
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al guardar mantenimiento: {e}")
+        return jsonify({"error": "Error al guardar el mantenimiento", "detalle": str(e)}), 500
 
 # ---------------------
 # RUTA: historial de mantenimientos
@@ -6272,30 +7384,38 @@ def generar_mantenimientos_programados():
     try:
         sql = text("""
             INSERT INTO MantenimientosProgramados (
-                id_unidad,
-                id_tipo_mantenimiento,
-                fecha_ultimo_mantenimiento,
-                kilometraje_ultimo,
-                proximo_mantenimiento,
-                proximo_kilometraje
-            )
-            SELECT
-                u.id_unidad,
-                f.id_tipo_mantenimiento,
-                NULL AS fecha_ultimo_mantenimiento,
-                NULL AS kilometraje_ultimo,
-                DATE_ADD(CURDATE(), INTERVAL f.frecuencia_tiempo DAY) AS proximo_mantenimiento,
-                COALESCE(u.kilometraje_actual, 0) + f.frecuencia_kilometraje AS proximo_kilometraje
-            FROM Unidades u
-            JOIN FrecuenciasPorMarca f
-                ON u.marca COLLATE utf8mb4_general_ci =
-                   f.marca COLLATE utf8mb4_general_ci
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM MantenimientosProgramados mp
-                WHERE mp.id_unidad = u.id_unidad
-                  AND mp.id_tipo_mantenimiento = f.id_tipo_mantenimiento
-            );
+            id_unidad,
+            id_tipo_mantenimiento,
+            fecha_ultimo_mantenimiento,
+            kilometraje_ultimo,
+            proximo_mantenimiento,
+            proximo_kilometraje
+        )
+        SELECT
+            u.id_unidad,
+            fpm.id_tipo_mantenimiento,
+            NULL,
+            NULL,
+            DATE_ADD(
+                CURDATE(),
+                INTERVAL COALESCE(fpu.frecuencia_tiempo, fpm.frecuencia_tiempo) DAY
+            ),
+            COALESCE(u.kilometraje_actual, 0) +
+            COALESCE(fpu.frecuencia_kilometraje, fpm.frecuencia_kilometraje)
+        FROM Unidades u
+        JOIN FrecuenciasPorMarca fpm
+            ON u.marca COLLATE utf8mb4_general_ci =
+            fpm.marca COLLATE utf8mb4_general_ci
+        LEFT JOIN FrecuenciasPorUnidad fpu
+            ON fpu.id_unidad = u.id_unidad
+        AND fpu.id_tipo_mantenimiento = fpm.id_tipo_mantenimiento
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM MantenimientosProgramados mp
+            WHERE mp.id_unidad = u.id_unidad
+            AND mp.id_tipo_mantenimiento = fpm.id_tipo_mantenimiento
+        );
+
         """)
 
         result = db.session.execute(sql)
@@ -6489,7 +7609,7 @@ def get_verificaciones():
 # --------- Obtener todas las empresas ---------
 @app.route('/api/empresas', methods=['GET'])
 def get_empresas():
-    empresas = Empresa.query.all()
+    empresas = Empresa.query.filter_by(estatus='Activo').all()  # Solo activas
     resultado = []
     for e in empresas:
         resultado.append({
@@ -6499,11 +7619,12 @@ def get_empresas():
             'regimen_fiscal': e.regimen_fiscal,
             'nombre_comercial': e.nombre_comercial,
             'direccion': e.direccion,
-            'inicio_operaciones': e.inicio_operaciones.strftime('%Y-%m-%d'),
+            'inicio_operaciones': e.inicio_operaciones.strftime('%Y-%m-%d') if e.inicio_operaciones else None,
             'estatus': e.estatus,
             'actividad_economica': e.actividad_economica
         })
     return jsonify(resultado)
+
 
 # --------- Insertar empresa ---------
 @app.route('/api/empresas', methods=['POST'])
@@ -6542,7 +7663,21 @@ def actualizar_empresa(id_empresa):
     return jsonify({'message': 'Empresa actualizada'})
 
 # --------- Eliminar empresa ---------
+
 @app.route('/api/empresas/<int:id_empresa>', methods=['DELETE'])
+def eliminar_empresa(id_empresa):
+    empresa = Empresa.query.get(id_empresa)
+    if not empresa:
+        return jsonify({'message': 'Empresa no encontrada'}), 404
+    
+    # Cambio lógico de estado
+    empresa.estatus = 'inactivo'
+    db.session.commit()
+    
+    return jsonify({'message': 'Empresa desactivada correctamente'})
+
+
+"""@app.route('/api/empresas/<int:id_empresa>', methods=['DELETE'])
 def eliminar_empresa(id_empresa):
     empresa = Empresa.query.get(id_empresa)
     if not empresa:
@@ -6550,13 +7685,35 @@ def eliminar_empresa(id_empresa):
     db.session.delete(empresa)
     db.session.commit()
     return jsonify({'message': 'Empresa eliminada'})
+"""
+# -------------------------------
+# Listar todas las sucursales
+# -------------------------------
+@app.route("/api/sucursales/<int:id>", methods=["DELETE"])
+def delete_sucursal(id):
+    sucursal = Sucursal.query.get_or_404(id)
+    # Cambiar estado a 0 en vez de borrar
+    sucursal.estado = 0
+    db.session.commit()
+    return jsonify({"message": "Sucursal desactivada exitosamente"})
 
+
+"""@app.route('/api/empresas/<int:id_empresa>', methods=['DELETE'])
+def eliminar_empresa(id_empresa):
+    empresa = Empresa.query.get(id_empresa)
+    if not empresa:
+        return jsonify({'message': 'Empresa no encontrada'}), 404
+    db.session.delete(empresa)
+    db.session.commit()
+    return jsonify({'message': 'Empresa eliminada'})
+"""
 # -------------------------------
 # Listar todas las sucursales
 # -------------------------------
 @app.route("/api/sucursaless", methods=["GET"])
 def get_sucursal():
-    sucursales = Sucursal.query.all()
+    # Filtra solo las sucursales con estado activo (1)
+    sucursales = Sucursal.query.filter_by(estado=1).all()
     return jsonify([{
         "id_sucursal": s.id_sede,
         "nombre": s.name,
@@ -6615,13 +7772,15 @@ def update_sucursal(id):
 # -------------------------------
 # Eliminar sucursal
 # -------------------------------
+
+"""
 @app.route("/api/sucursales/<int:id>", methods=["DELETE"])
 def delete_sucursal(id):
     sucursal = Sucursal.query.get_or_404(id)
     db.session.delete(sucursal)
     db.session.commit()
     return jsonify({"message": "Sucursal eliminada exitosamente"})
-
+"""
 
 
 
@@ -6684,6 +7843,161 @@ def listar_placas():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+#===============================================
+#Documentacion de unidad
+#===============================================
+from sqlalchemy import desc
+
+def estado_vigencia(fecha):
+    if not fecha:
+        return "DESCONOCIDO"
+    return "VIGENTE" if date.today() <= fecha else "VENCIDO"
+
+
+def fecha_corta(fecha):
+    return fecha.strftime("%d/%m/%Y") if fecha else None
+
+@app.route("/api/documentacion/unidad/<int:id_unidad>", methods=["GET"])
+def documentacion_unidad(id_unidad):
+
+    unidad = db.session.get(Unidades, id_unidad)
+    if not unidad:
+        return jsonify({"error": "Unidad no encontrada"}), 404
+
+    # ---------- FACTURA E IMÁGENES (UNIDADES) ----------
+    factura = {
+        "url_factura": unidad.url_factura,
+        "url_foto": unidad.url_foto,
+        "fotos": {
+            "lateral_izq": unidad.foto_lateral_izq,
+            "lateral_der": unidad.foto_lateral_der,
+            "frontal": unidad.foto_frontal,
+            "trasera": unidad.foto_trasera,
+            "tablero": unidad.foto_tablero_nivel
+        }
+    }
+
+    # ---------- PLACAS (ACTIVA + HISTORIAL) ----------
+    placa = Placas.query.filter_by(id_unidad=id_unidad, estado=1).first()
+    historial_placas = HistorialPlaca.query.filter_by(id_unidad=id_unidad)\
+        .order_by(desc(HistorialPlaca.fecha_cambio)).all()
+
+    placas_data = {
+        "actual": placa.to_dict() if placa else None,
+        "estado": estado_vigencia(placa.fecha_vigencia) if placa else None,
+
+        "historial": [
+            {
+                "placa": h.placa,
+                "fecha_expedicion": h.fecha_expedicion,
+                "fecha_vigencia": h.fecha_vigencia,
+                "url_placa_frontal": h.url_placa_frontal,
+                "url_placa_trasera": h.url_placa_trasera,
+                "url_tarjeta": h.url_tarjeta_circulacion,
+                "url_comprobante": h.url_comprobante_pago
+            } for h in historial_placas
+        ]
+    }
+
+    # ---------- REFRENDO / TENENCIA (ÚLTIMO AÑO + HISTORIAL) ----------
+
+    # Tomar el último registro SIN filtrar por estado
+    ultimo_pago = Refrendo_Tenencia.query.filter_by(
+        id_unidad=id_unidad
+    ).order_by(desc(Refrendo_Tenencia.fecha_creacion)).first()
+
+    # Historial completo (independiente del estado)
+    historial_pagos = Historial_Refrendo_Tenencia.query.filter_by(
+        id_unidad=id_unidad
+    ).order_by(desc(Historial_Refrendo_Tenencia.fecha_registro)).all()
+
+    # Construcción del pago actual
+    refrendo_actual = None
+
+    if ultimo_pago:
+        # CASO: PAGO PENDIENTE (solo comprobante)
+        if ultimo_pago.tipo_pago == "PENDIENTE":
+            refrendo_actual = {
+                "anio": (ultimo_pago.fecha_creacion.year + 1)
+                if ultimo_pago.fecha_creacion else None,
+                "tipo_pago": "PENDIENTE",
+                "fecha_pago": None,
+                "limite_pago": None,
+                "estado": "PENDIENTE",
+                "url_factura": None,
+                "url_comprobante": ultimo_pago.url_comprobante
+            }
+        # CASO: PAGO COMPLETO (REFRENDO / TENENCIA / AMBOS)
+        else:
+            refrendo_actual = {
+                "anio": ultimo_pago.fecha_pago.year if ultimo_pago.fecha_pago else None,
+                "tipo_pago": ultimo_pago.tipo_pago,
+                "fecha_pago": ultimo_pago.fecha_pago,
+                "limite_pago": ultimo_pago.limite_pago,
+                "estado": estado_vigencia(ultimo_pago.limite_pago),
+                "url_factura": ultimo_pago.url_factura,
+                "url_comprobante": ultimo_pago.url_comprobante
+            }
+
+    # Respuesta final
+    refrendo_data = {
+        "actual": refrendo_actual,
+        "historial": [
+            {
+                "anio": h.fecha_pago.year if h.fecha_pago else None,
+                "tipo_pago": h.tipo_pago,
+                "url_factura": h.url_factura,
+                "url_comprobante": h.url_comprobante
+            } for h in historial_pagos
+        ]
+    }
+
+
+    # ---------- VERIFICACIÓN VIGENTE ----------
+    verificacion = VerificacionVehicular.query.filter_by(id_unidad=id_unidad, estado=1)\
+        .order_by(desc(VerificacionVehicular.ultima_verificacion)).first()
+
+    verificacion_data = {
+        "ultima_verificacion": fecha_corta(verificacion.ultima_verificacion) if verificacion else None,
+        "periodo_1": verificacion.periodo_1 if verificacion else None,
+        "periodo_2": verificacion.periodo_2 if verificacion else None,
+        "holograma": verificacion.holograma if verificacion else None,
+        "url_1": verificacion.url_verificacion_1 if verificacion else None,
+        "url_2": verificacion.url_verificacion_2 if verificacion else None
+    } if verificacion else None
+
+    # ---------- GARANTÍAS / PÓLIZAS VIGENTES ----------
+    polizas = Garantias.query.filter_by(id_unidad=id_unidad, estado=1)\
+        .order_by(desc(Garantias.vigencia)).all()
+
+    polizas_data = [
+        {
+            "aseguradora": p.aseguradora,
+            "tipo": p.tipo_garantia,
+            "no_poliza": p.no_poliza,
+            "vigencia": p.vigencia,
+            "estado": estado_vigencia(p.vigencia),
+            "anio_vencimiento": fecha_corta(p.vigencia),
+            "url_poliza": p.url_poliza
+        } for p in polizas
+    ]
+
+    return jsonify({
+        "unidad": {
+            "id_unidad": unidad.id_unidad,
+            "cve": unidad.cve,
+            "marca": unidad.marca,
+            "modelo": unidad.modelo,
+            "anio": unidad.año,
+            "placa": unidad.placas_rel.placa if unidad.placas_rel else None
+        },
+        "factura_y_fotos": factura,
+        "placas": placas_data,
+        "refrendo_tenencia": refrendo_data,
+        "verificacion": verificacion_data,
+        "polizas": polizas_data
+    })
 
 
 @app.route('/api/dashboard/unidades_completo', methods=['GET'])
@@ -6882,6 +8196,63 @@ def dashboard_unidades_completo():
 #Alertas del sistema mensajes
 #=====================================================================                                                      
 
+from flask import Flask, jsonify
+from sqlalchemy import cast, Integer
+"""
+@app.route("/api/alertas/usuario/<int:user_id>", methods=["GET"])
+def get_alertas_usuario(user_id):
+    usuario = db.session.get(Usuarios, user_id)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # Traemos todas las alertas con el cve de la unidad
+    query = (
+        db.session.query(Alerta, Unidades.cve)
+        .outerjoin(Unidades, Unidades.id_unidad == Alerta.id_unidad)
+        .order_by(Alerta.fecha_generada.desc())
+    )
+
+    resultados = query.all()
+
+    # Filtrado según el rol del usuario
+    salida = []
+
+    if usuario.rol in ("Administrador", "usuario"):
+        # Administrador y usuario solo ven alertas del rol 'Administrador'
+        for alerta, cve_unidad in resultados:
+            detalle_rol = alerta.detalle.get("rol")
+            if detalle_rol == "Administrador":
+                salida.append({
+                    "id_alerta": alerta.id_alerta,
+                    "id_unidad": alerta.id_unidad,
+                    "cve_unidad": cve_unidad,
+                    "tipo_alerta": alerta.tipo_alerta,
+                    "descripcion": alerta.descripcion,
+                    "estado": alerta.estado,
+                    "fecha_generada": alerta.fecha_generada.isoformat(),
+                    "fecha_resuelta": alerta.fecha_resuelta.isoformat() if alerta.fecha_resuelta else None,
+                    "detalle": alerta.detalle
+                })
+    else:
+        # Para otros roles (ej. Conductor)
+        for alerta, cve_unidad in resultados:
+            detalle_rol = alerta.detalle.get("rol")
+            if detalle_rol == "Conductor" and usuario.chofer:
+                if alerta.detalle.get("id_chofer") == usuario.chofer.id_chofer:
+                    salida.append({
+                        "id_alerta": alerta.id_alerta,
+                        "id_unidad": alerta.id_unidad,
+                        "cve_unidad": cve_unidad,
+                        "tipo_alerta": alerta.tipo_alerta,
+                        "descripcion": alerta.descripcion,
+                        "estado": alerta.estado,
+                        "fecha_generada": alerta.fecha_generada.isoformat(),
+                        "fecha_resuelta": alerta.fecha_resuelta.isoformat() if alerta.fecha_resuelta else None,
+                        "detalle": alerta.detalle
+                    })
+
+    return jsonify({"alertas": salida})
+"""
 @app.route("/api/alertas/usuario/<int:user_id>", methods=["GET"])
 def get_alertas_usuario(user_id):
     usuario = db.session.get(Usuarios, user_id)
@@ -6894,7 +8265,7 @@ def get_alertas_usuario(user_id):
         .order_by(Alerta.fecha_generada.desc())
     )
 
-    if usuario.rol not in ("Administrador", "usuario"):
+    if usuario.rol not in ("Administrador", "usuario" ,"Superusuario"):
 
         if usuario.chofer:
             filtro_valor = usuario.chofer.id_chofer
@@ -6926,6 +8297,390 @@ def get_alertas_usuario(user_id):
     return jsonify({"alertas": salida})
 
 
+#=====================================================
+#papelera
+#====================================================
+# Ejemplo para usuarios
+@app.route('/api/usuarios/papelera', methods=['GET'])
+def usuarios_papelera():
+    usuarios = Usuarios.query.filter_by(estado=False).all()
+    resultado = [{
+        "id_usuario": u.id_usuario,
+        "nombre": u.nombre,
+        "correo": u.correo,
+        "rol": u.rol
+    } for u in usuarios]
+    return jsonify(resultado), 200
+
+
+# Ejemplo para unidades
+@app.route('/api/unidades/papelera', methods=['GET'])
+def unidades_papelera():
+    unidades = Unidades.query.filter_by(estado=False).all()
+    resultado = [{
+        "id_unidad": u.id_unidad,
+        "cve": u.cve,
+        "marca": u.marca,
+        "modelo": u.modelo,
+        "version": u.version
+    } for u in unidades]
+    return jsonify(resultado), 200
+
+
+# Ejemplo para placas
+@app.route('/api/placas/papelera', methods=['GET'])
+def placas_papelera():
+    # Traer placas eliminadas junto con info de la unidad
+    placas = db.session.query(
+        Placas,
+        Unidades.cve,
+        Unidades.marca,
+        Unidades.version,
+        Unidades.modelo
+    ).join(Unidades, Placas.id_unidad == Unidades.id_unidad)\
+     .filter(Placas.estado == False)\
+     .all()
+
+    resultado = []
+    for p, cve, marca, version, modelo in placas:
+        resultado.append({
+            "id_placa": p.id_placa,
+            "placa": p.placa,
+            "folio": p.folio,
+            "unidad": f"{cve} {marca} {version} {modelo}"  # todo en una línea
+        })
+
+    return jsonify(resultado), 200
+
+
+
+# Ejemplo para garantías
+@app.route('/api/garantias/papelera', methods=['GET'])
+def garantias_papelera():
+    # Traer solo garantías eliminadas (estado = 0)
+    garantias = db.session.query(
+        Garantias,
+        Unidades.cve,
+        Unidades.marca,
+        Unidades.modelo,
+        Unidades.version
+    ).join(Unidades, Garantias.id_unidad == Unidades.id_unidad)\
+     .filter(Garantias.estado == False)\
+     .all()
+
+    resultado = []
+    for g, cve, marca, modelo, version in garantias:
+        resultado.append({
+            "id_garantia": g.id_garantia,
+            "id_unidad": g.id_unidad,
+            "unidad": f"{cve} {marca} {version} {modelo}",  # todo en una línea
+            "aseguradora": g.aseguradora,
+            "tipo_garantia": g.tipo_garantia,
+            "no_poliza": g.no_poliza,
+            "vigencia": g.vigencia.strftime("%Y-%m-%d") if g.vigencia else None
+        })
+
+    return jsonify(resultado), 200
+
+
+
+@app.route('/api/verificaciones/papelera', methods=['GET'])
+def verificaciones_papelera():
+    # Traer verificaciones eliminadas junto con la info de la unidad
+    verificaciones = db.session.query(
+        VerificacionVehicular,
+        Unidades.cve,
+        Unidades.marca,
+        Unidades.version,
+        Unidades.modelo
+    ).join(Unidades, VerificacionVehicular.id_unidad == Unidades.id_unidad)\
+     .filter(VerificacionVehicular.estado == False)\
+     .all()
+
+    resultado = []
+    for v, cve, marca, version, modelo in verificaciones:
+        resultado.append({
+            "id_verificacion": v.id_verificacion,
+            "unidad": f"{cve} {marca} {version} {modelo}",  # todo en una línea
+            "ultima_verificacion": v.ultima_verificacion.strftime("%Y-%m-%d") if v.ultima_verificacion else None,
+            "periodo_1_real": v.periodo_1_real.strftime("%Y-%m-%d") if v.periodo_1_real else None,
+            "periodo_2_real": v.periodo_2_real.strftime("%Y-%m-%d") if v.periodo_2_real else None,
+            "engomado": v.engomado,
+            "holograma": v.holograma
+        })
+
+    return jsonify(resultado), 200
+
+
+# ------------------------------
+# PAPELERA SUCURSALES
+# ------------------------------
+
+# Listar sucursales eliminadas
+@app.route("/api/sucursales/papelera", methods=["GET"])
+def papelera_sucursales():
+    sucursales = Sucursal.query.filter_by(estado=0).all()  # Solo eliminadas
+    return jsonify([
+        {
+            "id_sucursal": s.id_sede,
+            "nombre": s.name,
+            "direccion": s.direccion,
+            "telefono": s.telefono,
+            "correo": s.correo,
+            "horario": s.horario
+        } for s in sucursales
+    ])
+
+# Restaurar sucursal
+@app.route("/api/sucursales/restaurar/<int:id_sucursal>", methods=["PATCH"])
+def restaurar_sucursal(id_sucursal):
+    sucursal = Sucursal.query.get(id_sucursal)
+    if not sucursal:
+        return jsonify({"error": "Sucursal no encontrada"}), 404
+    sucursal.estado = True  # Solo cambia estado
+    db.session.commit()
+    return jsonify({"mensaje": "Sucursal restaurada correctamente"}), 200
+
+
+
+
+# Listar empresas eliminadas
+@app.route('/api/empresas/papelera', methods=['GET'])
+def papelera_empresas():
+    empresas = Empresa.query.filter_by(estatus="inactivo").all()  # Solo eliminadas
+    return jsonify([
+        {
+            'id_empresa': e.id_empresa,
+            'razon_social': e.razon_social,
+            'rfc': e.rfc,
+            'regimen_fiscal': e.regimen_fiscal,
+            'nombre_comercial': e.nombre_comercial,
+            'direccion': e.direccion,
+            'inicio_operaciones': e.inicio_operaciones.strftime('%Y-%m-%d'),
+            'estatus': e.estatus,
+            'actividad_economica': e.actividad_economica
+        } for e in empresas
+    ])
+
+# Restaurar empresa
+@app.route('/api/empresas/restaurar/<int:id_empresa>', methods=['PATCH'])
+def restaurar_empresa(id_empresa):
+    empresa = Empresa.query.get(id_empresa)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 404
+    empresa.estatus = "Activo"  # Solo cambia el estado
+    db.session.commit()
+    return jsonify({'mensaje': 'Empresa restaurada correctamente'}), 200
+
+
+# Restaurar usuario
+@app.route('/api/usuarios/restaurar/<int:id_usuario>', methods=['PATCH'])
+def restaurar_usuario(id_usuario):
+    usuario = Usuarios.query.get(id_usuario)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+    usuario.estado = True
+    db.session.commit()
+    return jsonify({"mensaje": "Usuario restaurado correctamente"}), 200
+
+
+# Restaurar unidad
+@app.route('/api/unidades/restaurar/<int:id_unidad>', methods=['PATCH'])
+def restaurar_unidad(id_unidad):
+    unidad = Unidades.query.get(id_unidad)
+    if not unidad:
+        return jsonify({"error": "Unidad no encontrada"}), 404
+    unidad.estado = True
+    db.session.commit()
+    return jsonify({"mensaje": "Unidad restaurada correctamente"}), 200
+
+
+# Restaurar placa
+@app.route('/api/placas/restaurar/<int:id_placa>', methods=['PATCH'])
+def restaurar_placa(id_placa):
+    placa = Placas.query.get(id_placa)
+    if not placa:
+        return jsonify({"error": "Placa no encontrada"}), 404
+    placa.estado = True
+    db.session.commit()
+    return jsonify({"mensaje": "Placa restaurada correctamente"}), 200
+
+
+# Restaurar garantía
+@app.route('/api/garantias/restaurar/<int:id_garantia>', methods=['PATCH'])
+def restaurar_garantia(id_garantia):
+    garantia = Garantias.query.get(id_garantia)
+    if not garantia:
+        return jsonify({"error": "Garantía no encontrada"}), 404
+    garantia.estado = True
+    db.session.commit()
+    return jsonify({"mensaje": "Garantía restaurada correctamente"}), 200
+
+
+# Restaurar verificación
+@app.route('/api/verificaciones/restaurar/<int:id_verificacion>', methods=['PATCH'])
+def restaurar_verificacion(id_verificacion):
+    verificacion = VerificacionVehicular.query.get(id_verificacion)
+    if not verificacion:
+        return jsonify({"error": "Verificación no encontrada"}), 404
+    verificacion.estado = True
+    db.session.commit()
+    return jsonify({"mensaje": "Verificación restaurada correctamente"}), 200
+
+
+#===========================================================================================
+#Documentacion de unidad por chofer
+#===========================================================================================
+
+@app.route("/api/documentacion/unidad/chofer/<int:idUsuario>", methods=["GET"])
+def documentacion_unidad_por_chofer(idUsuario):
+
+    print("====== DEBUG DOCUMENTACION POR USUARIO ======")
+    print("ID USUARIO RECIBIDO:", idUsuario)
+
+    # 1. Buscar usuario
+    usuario = Usuarios.query.get(idUsuario)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # 2. Buscar chofer asociado (opcional)
+    chofer = Choferes.query.filter_by(id_usuario=idUsuario).first()
+    chofer_data = chofer.to_dict() if chofer else None
+    if chofer:
+        print("CHOFER ENCONTRADO:", chofer)
+    else:
+        print("❌ No hay chofer asociado a este usuario")
+
+    # 3. Buscar asignación activa de unidad (por usuario)
+    asignacion = Asignaciones.query.filter_by(
+        id_usuario=idUsuario,
+        status="activo"
+    ).first()
+
+    if not asignacion:
+        print("❌ No hay unidad activa asignada")
+        return jsonify({
+            "usuario": {
+                "id": usuario.id_usuario,
+                "nombre": usuario.nombre,
+                "rol": usuario.rol,
+                "estado": usuario.estado
+            },
+            "chofer": chofer_data,
+            "documentacion": None
+        }), 200
+
+    print("ASIGNACIÓN ENCONTRADA:", asignacion)
+
+    # 4. Construir documentación de la unidad
+    try:
+        data = construir_documentacion_unidad(asignacion.id_unidad)
+    except Exception as e:
+        print("❌ ERROR AL CONSTRUIR DOCUMENTACIÓN:", str(e))
+        return jsonify({
+            "error": "Error al construir la documentación de la unidad"
+        }), 500
+
+    # 5. Agregar info de usuario y chofer directamente al JSON
+    data["usuario"] = {
+        "id": usuario.id_usuario,
+        "nombre": usuario.nombre,
+        "rol": usuario.rol,
+        "estado": usuario.estado
+    }
+    data["chofer"] = chofer_data
+
+    print("DOCUMENTACIÓN CONSTRUIDA CORRECTAMENTE")
+    print("========================================")
+
+    return jsonify(data), 200
+
+
+def construir_documentacion_unidad(id_unidad):
+    """
+    Construye toda la documentación asociada a una unidad:
+    - Factura y fotografías
+    - Placas (actual e historial)
+    - Refrendo / tenencia
+    - Verificación vehicular
+    - Pólizas de seguro
+    """
+    print("---- CONSTRUYENDO DOCUMENTACIÓN ----")
+    print("ID_UNIDAD:", id_unidad)
+
+    data = {}
+
+    # ===============================
+    # UNIDAD (FACTURA + FOTOS)
+    # ===============================
+    unidad = Unidades.query.get(id_unidad)
+    print("UNIDAD:", unidad)
+
+    if not unidad:
+        print("❌ UNIDAD NO ENCONTRADA")
+        return {"error": "Unidad no encontrada"}
+
+    data["factura_y_fotos"] = {
+        "url_factura": unidad.url_factura,
+        "fotos": {
+            "frontal": unidad.foto_frontal,
+            "trasera": unidad.foto_trasera,
+            "lateral_izq": unidad.foto_lateral_izq,
+            "lateral_der": unidad.foto_lateral_der,
+            "tablero": unidad.foto_tablero_nivel
+        }
+    }
+
+    # ===============================
+    # PLACAS
+    # ===============================
+    placas = Placas.query.filter_by(id_unidad=id_unidad) \
+        .order_by(Placas.fecha_vigencia.desc()).all()
+
+    print("PLACAS ENCONTRADAS:", len(placas))
+
+    data["placas"] = {
+        "actual": placas[0].to_dict() if placas else None,
+        "historial": [p.to_dict() for p in placas[1:]] if len(placas) > 1 else []
+    }
+
+    # ===============================
+    # REFRENDO / TENENCIA (MODELO REAL)
+    # ===============================
+    pagos = Refrendo_Tenencia.query.filter_by(
+        id_unidad=id_unidad,
+        estado=1
+    ).order_by(Refrendo_Tenencia.fecha_pago.desc()).all()
+
+    print("PAGOS ENCONTRADOS:", len(pagos))
+
+    data["refrendo_tenencia"] = {
+        "actual": pagos[0].to_dict() if pagos else None,
+        "historial": [p.to_dict() for p in pagos[1:]] if len(pagos) > 1 else []
+    }
+
+    # ===============================
+    # VERIFICACIÓN
+    # ===============================
+    verificacion = VerificacionVehicular.query.filter_by(id_unidad=id_unidad)\
+        .order_by(VerificacionVehicular.ultima_verificacion.desc()).first()
+    print("VERIFICACIÓN:", verificacion)
+    data["verificacion"] = verificacion.to_dict() if verificacion else None
+
+    # ===============================
+    # PÓLIZAS
+    # ===============================
+    garantias = Garantias.query.filter_by(id_unidad=id_unidad)\
+        .order_by(Garantias.inicio_vigencia.desc()).all()
+    print("GARANTÍAS ENCONTRADAS:", len(garantias))
+    data["garantias"] = [g.to_dict() for g in garantias]  # <-- Esto ya existe
+
+    print("-----------------------------------")
+    return data
+
+
+
+#===========================================================================================
 
 @app.route("/api/solicitudes_mensajes/depurar", methods=["DELETE"])
 def depurar_mensajes():
@@ -6935,11 +8690,11 @@ def depurar_mensajes():
 
     # Valor por defecto: 3 meses
     if meses:
-        limite = datetime.utcnow() - timedelta(days=meses * 30)
+        limite = datetime.now() - timedelta(days=meses * 30)
     elif dias:
-        limite = datetime.utcnow() - timedelta(days=dias)
+        limite = datetime.now() - timedelta(days=dias)
     else:
-        limite = datetime.utcnow() - timedelta(days=90)
+        limite = datetime.now() - timedelta(days=90)
 
     mensajes = SolicitudFallaMensajes.query.filter(
         SolicitudFallaMensajes.fecha < limite
@@ -6967,80 +8722,6 @@ def depurar_mensajes():
 
 
 
-@app.route("/api/scheduler/tiempos", methods=["GET"])
-def scheduler_tiempos():
-    respuesta = []
-
-    for job in scheduler.get_jobs():
-        if job.next_run_time:
-            ahora = datetime.now(job.next_run_time.tzinfo)
-            restante = job.next_run_time - ahora
-
-            segundos = int(restante.total_seconds())
-            dias = segundos // 86400
-            horas = (segundos % 86400) // 3600
-            minutos = (segundos % 3600) // 60
-        else:
-            dias = horas = minutos = None
-
-        respuesta.append({
-            "id": job.id,
-            "nombre": job.name,
-            "proxima_ejecucion": job.next_run_time.isoformat() if job.next_run_time else None,
-            "restante": f"{dias} días {horas} h {minutos} min"
-        })
-
-    return jsonify(respuesta)
-
-# --------------------------- Jobs ---------------------------
-
-def job_envio_alertas_verificacion():
-    with app.app_context():
-        try:
-            enviar_alertas_verificacion()
-        except Exception as e:
-            print("Error:", e)
-
-def job_envio_alertas():
-    with app.app_context():
-        try:
-            enviar_alertas_semanales()
-        except Exception as e:
-            print("Error:", e)
-
-def job_enviar_alertas_refrendo_tenencia():
-    with app.app_context():
-        try:
-            enviar_alertas_refrendo_tenencia()
-        except Exception as e:
-            print("Error:", e)
-
-# Job para scheduler
-def job_enviar_alertas_garantias():
-    with app.app_context():
-        try:
-            enviar_alertas_garantias()
-        except Exception as e:
-            print("Error al enviar alertas de garantías:", e)
-
-def job_enviar_alertas_mantenimientos():
-    with app.app_context():
-        try:
-            enviar_alertas_mantenimientos()
-        except Exception as e:
-            print("Error al enviar alertas de garantías:", e)
-
-bcrypt = Bcrypt(app)
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(job_envio_alertas_verificacion, 'interval', days=7)
-scheduler.add_job(job_envio_alertas, 'interval', days=7)
-scheduler.add_job(job_enviar_alertas_refrendo_tenencia, 'interval', days=7)
-scheduler.add_job(job_enviar_alertas_garantias, 'interval', days=7)
-scheduler.add_job(job_enviar_alertas_mantenimientos, 'interval',  days=7)
-
-
-scheduler.start()
 
 
 
@@ -7049,6 +8730,5 @@ scheduler.start()
 if __name__ == '__main__':
 
 
-    app.run(host='0.0.0.0', port=5000, debug=True)#, use_reloader=False)
-
+    app.run(host='0.0.0.0', port=5000, debug=True ) #, use_reloader=False)
 

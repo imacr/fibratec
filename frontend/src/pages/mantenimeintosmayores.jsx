@@ -11,10 +11,47 @@ export default function MantenimientosMayores() {
   const [error, setError] = useState(false);
   const [registroSeleccionado, setRegistroSeleccionado] = useState(null);
     const [registroEditar, setRegistroEditar] = useState(null);
+  const [tiposMantenimiento, setTiposMantenimiento] = useState([]);
+
   // Filtros
   const [filtroID, setFiltroID] = useState("");
   const [filtroMarca, setFiltroMarca] = useState("");
   const [filtroClase, setFiltroClase] = useState("");
+  const [mostrarInicial, setMostrarInicial] = useState(false);
+  const [unidadInicial, setUnidadInicial] = useState(null);
+  // En tu componente principal MantenimientosMenores.jsx
+  const [unidades, setUnidades] = useState([]);
+  // En tu componente principal MantenimientosMenores.jsx
+  
+  useEffect(() => {
+    const fetchUnidades = async () => {
+      try {
+        const res = await fetch(`${API_URL}/unidades`);
+        if (!res.ok) throw new Error("Error al cargar unidades");
+        const data = await res.json();
+        setUnidades(data);
+      } catch (err) {
+        console.error(err);
+        Swal.fire("Error", "No se pudieron cargar las unidades", "error");
+      }
+    };
+    fetchUnidades();
+  }, []);
+  
+useEffect(() => {
+  const fetchTipos = async () => {
+    try {
+      const res = await fetch(`${API_URL}/tipos_mantenimiento`);
+      if (!res.ok) throw new Error("Error al cargar tipos");
+      const data = await res.json();
+      setTiposMantenimiento(data);
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Error", "No se pudieron cargar los tipos de mantenimiento", "error");
+    }
+  };
+  fetchTipos();
+}, []);
 
   // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
@@ -155,6 +192,90 @@ export default function MantenimientosMayores() {
           </form>
         );
       };
+
+  const FormularioInicial = ({  unidades = [], tiposMantenimiento = [], onClose, fetchProgramados }) => {
+    const [unidadSeleccionada, setUnidadSeleccionada] = useState(""); // nuevo select de unidad
+    const [tipo, setTipo] = useState("");
+    const [frecuenciaDias, setFrecuenciaDias] = useState("");
+    const [frecuenciaKm, setFrecuenciaKm] = useState("");
+    const [fechaUltimo, setFechaUltimo] = useState("");
+    const [kmUltimo, setKmUltimo] = useState("");
+  
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+  
+      if (!unidadSeleccionada) return Swal.fire("Advertencia", "Debes seleccionar una unidad", "warning");
+      if (!tipo) return Swal.fire("Advertencia", "Debes seleccionar un tipo de mantenimiento", "warning");
+  
+      try {
+        const res = await fetch(`${API_URL}/mantenimientos/inicial`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_unidad: unidadSeleccionada,
+            id_tipo_mantenimiento: tipo,
+            frecuencia_tiempo: frecuenciaDias,
+            frecuencia_kilometraje: frecuenciaKm,
+            fecha_ultimo: fechaUltimo,
+            kilometraje_ultimo: kmUltimo,
+          }),
+        });
+  
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al registrar mantenimiento inicial");
+  
+        Swal.fire("Correcto", "Mantenimiento inicial creado", "success");
+        fetchProgramados(); // refresca tabla principal
+        onClose();
+      } catch (err) {
+        console.error(err);
+        Swal.fire("Error", err.message, "error");
+      }
+    };
+  
+    return (
+      <form onSubmit={handleSubmit} className="form-editar">
+        <h3>Registrar mantenimiento inicial</h3>
+  
+        <label>Unidad</label>
+  <select value={unidadSeleccionada} onChange={(e) => setUnidadSeleccionada(e.target.value)} required>
+    <option value="">-- Selecciona una unidad --</option>
+    {(unidades || []).map((u) => (
+      <option key={u.id_unidad} value={u.id_unidad}>
+        {u.cve} - {u.marca} {u.clase_tipo}
+      </option>
+    ))}
+  </select>
+  
+        <label>Tipo de mantenimiento</label>
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} required>
+          <option value="">-- Selecciona un tipo --</option>
+          {tiposMantenimiento.map((t) => (
+            <option key={t.id_tipo_mantenimiento} value={t.id_tipo_mantenimiento}>
+              {t.nombre_tipo}
+            </option>
+          ))}
+        </select>
+  
+        <label>Frecuencia (días)</label>
+        <input type="number" required value={frecuenciaDias} onChange={(e) => setFrecuenciaDias(e.target.value)} />
+  
+        <label>Frecuencia (km)</label>
+        <input type="number" required value={frecuenciaKm} onChange={(e) => setFrecuenciaKm(e.target.value)} />
+  
+        <label>Último mantenimiento</label>
+        <input type="date" required value={fechaUltimo} onChange={(e) => setFechaUltimo(e.target.value)} />
+  
+        <label>Kilometraje último</label>
+        <input type="number" required value={kmUltimo} onChange={(e) => setKmUltimo(e.target.value)} />
+  
+        <div className="botones-form">
+          <button type="submit" className="btn btn-primary">Registrar mantenimiento</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+        </div>
+      </form>
+    );
+  };
     
   return (
     <div className="unidades-container">
@@ -177,6 +298,15 @@ export default function MantenimientosMayores() {
           <option value="all">Todos</option>
         </select>
       </div>
+<button
+  className="btn btn-success"
+  onClick={() => {
+    setUnidadInicial({ id_unidad: "", id_tipo_mantenimiento: "" }); // objeto vacío para llenar
+    setMostrarInicial(true);
+  }}
+>
+  Registrar mantenimiento inicial
+</button>
 
       {loading ? (
         <div className="mensaje-estado">Cargando datos...</div>
@@ -351,6 +481,17 @@ export default function MantenimientosMayores() {
 
   </Modal>
 ) : null}
+
+{mostrarInicial && (
+  <Modal onClose={() => setMostrarInicial(false)}>
+    <FormularioInicial
+      unidades={unidades}                 // ← lista de unidades del state
+      tiposMantenimiento={tiposMantenimiento} // ← lista de tipos
+      onClose={() => setMostrarInicial(false)}
+      fetchProgramados={fetchProgramados} // ← para refrescar la tabla principal
+    />
+  </Modal>
+)}
 
 
 

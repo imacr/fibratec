@@ -63,39 +63,6 @@ export default function ProbarAlertas() {
     <div style={container}>
       <h2>Herramientas de prueba y mantenimiento</h2>
 
-      {/* ===== SCHEDULER ===== */}
-      <section style={section}>
-        <h3>Estado del scheduler</h3>
-        <button onClick={obtenerScheduler} style={btnBlue}>
-          Ver próximas ejecuciones
-        </button>
-
-        {jobs.length > 0 && (
-          <div style={{ marginTop: "15px" }}>
-            {jobs.map((job) => (
-              <div key={job.id} style={card}>
-                <strong>{job.nombre}</strong>
-                <p>
-                  Próxima ejecución:<br />
-                  {new Date(job.proxima_ejecucion).toLocaleString()}
-                </p>
-                <p>
-                  Tiempo restante:<br />
-                  <strong>{job.restante}</strong>
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ===== ALERTAS ===== */}
-      <section style={section}>
-        <h3>Alertas de refrendo / tenencia</h3>
-        <button onClick={obtenerAlertas} style={btnBlue}>
-          Probar alertas
-        </button>
-      </section>
 
       {/* ===== MANTENIMIENTOS ===== */}
       <section style={section}>

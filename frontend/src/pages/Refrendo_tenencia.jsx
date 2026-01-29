@@ -26,11 +26,16 @@ export default function RegistroPago() {
   const [paidRefrendo, setPaidRefrendo] = useState(false);
   const [paidTenencia, setPaidTenencia] = useState(false);
   const [loadingCheck, setLoadingCheck] = useState(false);
+  const [estadoUnidad, setEstadoUnidad] = useState("NUEVO"); 
+  // NUEVO = solo subir comprobante
+  // COMPROBANTE = ya subió comprobante, ahora completar
+  // COMPLETO = ya se registró todo
 
   const [showModal, setShowModal] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [showFileModal, setShowFileModal] = useState(false);
   const [fileUrl, setFileUrl] = useState(null);
+  const [fileKey, setFileKey] = useState(Date.now());
 
   // ----------------------------
   // Filtros y búsqueda
@@ -44,6 +49,14 @@ export default function RegistroPago() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPageOptions = [5, 10, 20, 50];
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
+const [usuarios, setUsuarios] = useState([]);
+
+useEffect(() => {
+  fetch(`${API_URL}/usuarios`)
+    .then(res => res.json())
+    .then(data => setUsuarios(data || []))
+    .catch(() => Swal.fire("Error", "No se pudieron cargar los usuarios", "error"));
+}, []);
 
   // ----------------------------
   // Cargar unidades
@@ -103,80 +116,130 @@ export default function RegistroPago() {
   // ----------------------------
   // Validar unidad
   // ----------------------------
-  const handleValidarUnidad = async () => {
-    if (!form.id_unidad) return Swal.fire("Advertencia", "Selecciona una unidad", "warning");
-    setLoadingCheck(true);
-    try {
-      const res = await fetch(`${API_URL}/refrendo_tenencia/check/${form.id_unidad}`);
-      const data = await res.json();
-      if (data.ok) {
-        Swal.fire("Éxito", data.mensaje || "Se puede registrar pago", "success");
+const handleValidarUnidad = async () => {
+  if (!form.id_unidad) return Swal.fire("Advertencia", "Selecciona una unidad", "warning");
+  setLoadingCheck(true);
+  try {
+    const res = await fetch(`${API_URL}/refrendo_tenencia/check/${form.id_unidad}`);
+    const data = await res.json();
+
+    if (data.ok) {
+       setEstadoUnidad(data.estado);  // ← esto es lo que faltaba
+       setCanRegister(true);
+      if (data.estado === "NUEVO") {
+        Swal.fire("Éxito", "Unidad disponible para subir comprobante", "success");
         setCanRegister(true);
-        setPaidRefrendo(Boolean(data.refrendo));
-        setPaidTenencia(Boolean(data.tenencia));
-      } else {
-        Swal.fire("Atención", data.mensaje || "No se puede registrar aún", "info");
-        setCanRegister(false);
+      } else if (data.estado === "COMPROBANTE") {
+        Swal.fire("Éxito", "Ya se subió el comprobante. Ahora puedes completar los datos faltantes", "success");
+        setCanRegister(true);
       }
-    } catch (err) {
-      console.error(err);
-      Swal.fire("Error", "No se pudo validar la unidad", "error");
+      setPaidRefrendo(Boolean(data.refrendo));
+      setPaidTenencia(Boolean(data.tenencia));
+    } else {
+      Swal.fire("Atención", data.mensaje || "No se puede registrar aún", "info");
       setCanRegister(false);
-    } finally {
-      setLoadingCheck(false);
     }
-  };
+  } catch (err) {
+    console.error(err);
+    Swal.fire("Error", "No se pudo validar la unidad", "error");
+    setCanRegister(false);
+  } finally {
+    setLoadingCheck(false);
+  }
+};
+
+
 
   // ----------------------------
   // Registrar pago
   // ----------------------------
-  const handleRegistro = async () => {
-    if (!canRegister) return Swal.fire("Advertencia", "Primero valida la unidad", "warning");
-    if (!form.fecha_pago) return Swal.fire("Advertencia", "Fecha de pago es obligatoria", "warning");
+const handleRegistro = async () => {
+  if (!canRegister) return Swal.fire("Advertencia", "Primero valida la unidad", "warning");
 
-    let tipo_pago = "REFRENDO";
-    const fechaPago = new Date(form.fecha_pago);
-    const limiteRefrendo = new Date(fechaPago.getFullYear(), 2, 31);
-    if (fechaPago > limiteRefrendo) tipo_pago = "AMBOS";
+  // Solo comprobante (primer paso)
+  // Solo comprobante (primer paso)
+  if (!form.fecha_pago && form.url_factura) {
+  const fd = new FormData();
+  fd.append("id_unidad", form.id_unidad);
+  fd.append("url_factura", form.url_factura);
+  fd.append("estado", 0);
 
-    const fd = new FormData();
-    fd.append("id_unidad", form.id_unidad);
-    fd.append("fecha_pago", form.fecha_pago);
-    fd.append("monto", form.monto || "0");
-    fd.append("monto_refrendo", form.monto_refrendo || "0");
-    fd.append("tipo_pago", tipo_pago);
-    if (tipo_pago === "AMBOS") fd.append("monto_tenencia", form.monto_tenencia || "0");
-    if (form.url_factura) fd.append("url_factura", form.url_factura);
-    fd.append("observaciones", form.observaciones || "");
-    fd.append("usuario", form.usuario);
-
-    try {
-      const res = await fetch(`${API_URL}/refrendo_tenencia`, { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) return Swal.fire("Error", data.error || "Error al registrar pago", "error");
-
-      Swal.fire("Éxito", data.message || "Pago registrado", "success");
-
-      setForm({
-        id_unidad: "",
-        fecha_pago: "",
-        monto: "",
-        monto_refrendo: "",
-        monto_tenencia: "",
-        url_factura: null,
-        observaciones: "",
-        usuario: localStorage.getItem("usuarioId") || "",
-      });
-      setTipoPago("REFRENDO");
-      setCanRegister(false);
-      setPaidRefrendo(false);
-      setPaidTenencia(false);
-      fetchPagos();
-    } catch (err) {
-      console.error(err);
-      Swal.fire("Error", "No se pudo registrar el pago", "error");
+  try {
+    const res = await fetch(`${API_URL}/refrendo_tenencia`, {
+      method: "POST",
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return Swal.fire("Error", data.error || "Error al subir comprobante", "error");
     }
-  };
+
+    Swal.fire(
+      "Éxito",
+      "Comprobante registrado.",
+      "success"
+    );
+
+    // 🔒 NO habilitar segundo paso aún
+    setCanRegister(false);
+    setForm(prev => ({ ...prev, url_factura: null }));
+    setFileKey(Date.now());
+    fetchPagos();
+    return;
+
+  } catch (err) {
+    console.error(err);
+    Swal.fire("Error", "No se pudo subir el comprobante", "error");
+  }
+}
+
+
+  // Segundo paso: registrar todo lo demás
+  if (!form.fecha_pago) return Swal.fire("Advertencia", "Fecha de pago es obligatoria", "warning");
+
+  let tipo_pago = "REFRENDO";
+  const fechaPago = new Date(form.fecha_pago);
+  const limiteRefrendo = new Date(fechaPago.getFullYear(), 2, 31);
+  if (fechaPago > limiteRefrendo) tipo_pago = "AMBOS";
+
+  const fd = new FormData();
+  fd.append("id_unidad", form.id_unidad);
+  fd.append("fecha_pago", form.fecha_pago);
+  fd.append("monto", form.monto || "0");
+  fd.append("monto_refrendo", form.monto_refrendo || "0");
+  fd.append("tipo_pago", tipo_pago);
+  if (tipo_pago === "AMBOS") fd.append("monto_tenencia", form.monto_tenencia || "0");
+  if (form.url_factura) fd.append("url_factura", form.url_factura);
+  fd.append("observaciones", form.observaciones || "");
+  fd.append("usuario", form.usuario);
+  fd.append("estado", 1); // Registro completo
+
+  try {
+    const res = await fetch(`${API_URL}/refrendo_tenencia`, { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) return Swal.fire("Error", data.error || "Error al registrar pago", "error");
+
+    Swal.fire("Éxito", data.message || "Pago registrado completamente", "success");
+    setForm({
+      id_unidad: "",
+      fecha_pago: "",
+      monto: "",
+      monto_refrendo: "",
+      monto_tenencia: "",
+      url_factura: null,
+      observaciones: "",
+      usuario: localStorage.getItem("usuarioId") || "",
+    });
+    setTipoPago("REFRENDO");
+    setCanRegister(false);
+    setPaidRefrendo(false);
+    setPaidTenencia(false);
+    fetchPagos();
+  } catch (err) {
+    console.error(err);
+    Swal.fire("Error", "No se pudo registrar el pago", "error");
+  }
+};
 
   // ----------------------------
   // Editar pago
@@ -277,55 +340,77 @@ export default function RegistroPago() {
         </div>
 
         {/* Campos adicionales */}
-        {canRegister && (
-          <>
-            <div className="form-row" style={{ marginBottom: 15 }}>
+{canRegister && (
+  <>
+    {estadoUnidad === "NUEVO" && (
+      <div className="form-row" style={{ marginBottom: 15 }}>
+        <div className="form-group">
+          <label>Subir comprobante (PDF):</label>
+          <input
+            key={fileKey}
+            type="file"
+            name="url_factura"
+            accept="image/*,application/pdf"
+            onChange={handleChange}
+          />
+        </div>
+        <div style={{ textAlign: "right", marginTop: 10 }}>
+          <button className="update-btn" onClick={handleRegistro}>
+            Subir Comprobante
+          </button>
+        </div>
+      </div>
+    )}
+
+
+    {estadoUnidad === "COMPROBANTE" && (
+      <>
+        <div className="form-row" style={{ marginBottom: 15 }}>
+          <div className="form-group">
+            <label>Fecha de pago:</label>
+            <input type="date" name="fecha_pago" value={form.fecha_pago} onChange={handleFechaChange} required/>
+          </div>
+          <div className="form-group">
+            <label>Monto general (opcional):</label>
+            <input type="number" name="monto" value={form.monto} onChange={handleChange} />
+          </div>
+        </div>
+
+        <div style={{ padding: 10, marginBottom: 10, background: "#f9f9f9", borderRadius: 6 }}>
+          <h4>{tipoPago === "REFRENDO" ? "REFRENDO" : "REFRENDO / TENENCIA"}</h4>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Monto Refrendo:</label>
+              <input type="number" name="monto_refrendo" value={form.monto_refrendo} onChange={handleChange} disabled={paidRefrendo} />
+            </div>
+            {tipoPago === "AMBOS" && (
               <div className="form-group">
-                <label>Fecha de pago:</label>
-                <input type="date" name="fecha_pago" value={form.fecha_pago} onChange={handleFechaChange} />
+                <label>Monto Tenencia:</label>
+                <input type="number" name="monto_tenencia" value={form.monto_tenencia} onChange={handleChange} disabled={paidTenencia} />
               </div>
-              <div className="form-group">
-                <label>Monto general (opcional):</label>
-                <input type="number" name="monto" value={form.monto} onChange={handleChange} />
-              </div>
+            )}
+            <div className="form-group">
+              <label>Comprobante pago (PDF, imagen):</label>
+              <input type="file" name="url_factura" accept="image/*,application/pdf" onChange={handleChange} />
             </div>
+          </div>
+        </div>
 
-            <div style={{ padding: 10, marginBottom: 10, background: "#f9f9f9", borderRadius: 6 }}>
-              <h4>{tipoPago === "REFRENDO" ? "REFRENDO" : "REFRENDO / TENENCIA"}</h4>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Monto Refrendo:</label>
-                  <input type="number" name="monto_refrendo" value={form.monto_refrendo} onChange={handleChange} disabled={paidRefrendo} />
-                </div>
-                {tipoPago === "AMBOS" && (
-                  <div className="form-group">
-                    <label>Monto Tenencia:</label>
-                    <input type="number" name="monto_tenencia" value={form.monto_tenencia} onChange={handleChange} disabled={paidTenencia} />
-                  </div>
-                )}
-                <div className="form-group">
-                  <label>Factura (PDF):</label>
-                  <input type="file" name="url_factura" accept="application/pdf" onChange={handleChange} />
-                </div>
-              </div>
-            </div>
+        <div className="form-row" style={{ marginBottom: 15 }}>
+          <div className="form-group" style={{ flex: 2 }}>
+            <label>Observaciones:</label>
+            <textarea name="observaciones" value={form.observaciones} onChange={handleChange}></textarea>
+          </div>
+        </div>
 
-            <div className="form-row" style={{ marginBottom: 15 }}>
-              <div className="form-group" style={{ flex: 2 }}>
-                <label>Observaciones:</label>
-                <textarea name="observaciones" value={form.observaciones} onChange={handleChange}></textarea>
-              </div>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label>Usuario:</label>
-                <input name="usuario" value={form.usuario} disabled />
-              </div>
-            </div>
+        <div style={{ textAlign: "right" }}>
+          <button className="update-btn" onClick={handleRegistro}>Registrar Pago</button>
+        </div>
+      </>
+    )}
+  </>
+)}
 
-            <div style={{ textAlign: "right" }}>
-              <button className="update-btn" onClick={handleRegistro}>Registrar Pago</button>
-            </div>
-          </>
-        )}
       </div>
 
       {/* Filtros y búsqueda */}
@@ -399,7 +484,8 @@ export default function RegistroPago() {
               <th>Tipo Pago</th>
               <th>Monto Refrendo</th>
               <th>Monto Tenencia</th>
-              <th>Factura</th>
+              <th>Formato de pago</th>
+              <th>Evidencia del pago</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -421,6 +507,15 @@ export default function RegistroPago() {
                     <td>{pago.monto_refrendo?.toFixed(2) || "-"}</td>
                     <td>{pago.monto_tenencia?.toFixed(2) || "-"}</td>
                     <td>
+                      {pago.url_comprobante ? (
+                        <button className="btn btn-outline-danger btn-sm"
+                          onClick={() => { setFileUrl(`${API_URL}/${pago.url_comprobante}`); setShowFileModal(true); }}
+                        >
+                          Ver PDF
+                        </button>
+                      ) : "-"}
+                    </td>
+                    <td>
                       {pago.url_factura ? (
                         <button className="btn btn-outline-danger btn-sm"
                           onClick={() => { setFileUrl(`${API_URL}/${pago.url_factura}`); setShowFileModal(true); }}
@@ -429,6 +524,7 @@ export default function RegistroPago() {
                         </button>
                       ) : "-"}
                     </td>
+                    
                     <td>
                       <button onClick={() => handleEdit(pago)}>Editar</button>
                     </td>

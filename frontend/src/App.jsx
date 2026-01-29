@@ -31,7 +31,6 @@ import Swal from "sweetalert2";
 // Estilos
 import "./App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import BotonAlertas from "./pages/botonespruebas";
 import HistorialVerificaciones from "./pages/Historial_verificaciones";
 import Mantenimientos from "./pages/Mantenimientos";
 import TiposMantenimiento from "./pages/TiposMantenimientos";
@@ -43,7 +42,7 @@ import HistorialGarantias from "./pages/Historial_garantias";
 import HistorialAsignaciones from "./pages/Historial_asignaciones";
 import ListaSolicitudesEdicion from "./pages/SolicitudesPendientes";
 import Mensajeschofer from "./pages/mensajes_chofer";
-import DatosChoferUnidad from "./pages/DatosChoferUnidad";
+import DocumentacionUnidad from "./pages/DatosChoferUnidad";
 import Empresas from "./pages/empresa";
 import Sucursales from "./pages/sucursales";
 import CambiarContraseña from "./pages/Cambiarcontrasenia";
@@ -54,7 +53,11 @@ import Marcas from "./pages/marcas_piezas";
 import LugaresReparacion from "./pages/Lugares_reparacion";
 import Piezas from "./pages/piezas";
 import ReporteFallasGraficas from "./pages/ReporteUnidadesFallas";
-
+import Papelera from "./pages/papelera";
+import RefrendoDashboard from "./pages/dashboard_refrendo";
+import Unidades_documentada from "./pages/Panel_documento";
+import Datosunidad from "./pages/documentos_vehiculo";
+import Conductores from "./pages/Conductores";
 //import Mensajeschofer from "./pages/chofer_mensajes";
 // ====================================================
 // CONTENIDO PRINCIPAL DE LA APP
@@ -135,7 +138,6 @@ const [showChangePassword, setShowChangePassword] = useState(false);
                     <Route path="/placas" element={<Placas />} />
                     <Route path="/historialplacas" element={<HistorialPlacas />} />
                     <Route path="/historialrefrendo" element={<HistorialRefrendo />} />
-                    <Route path="/botones" element={<BotonAlertas />} />
                     <Route path="/historialverificaciones" element={<HistorialVerificaciones />} />
                     <Route path="/mantenimientos" element={<Mantenimientos />} />
                     <Route path="/tipos_mantenimientos" element={<TiposMantenimiento />} />
@@ -153,23 +155,26 @@ const [showChangePassword, setShowChangePassword] = useState(false);
                     <Route path="/lugaresrep" element={<LugaresReparacion />} />
                     <Route path="/piezas" element={<Piezas />} />
                     <Route path="/reportefallas" element={<ReporteFallasGraficas />} />
-
-
+                    <Route path="/papelera" element={<Papelera />} />
+                    <Route path="/dashrefendo" element={<RefrendoDashboard />} />
+                    <Route path="/panel_unidad" element={<Unidades_documentada />} />
+                    <Route path="/CONDUCTORES" element={<Conductores />} />
 
 
                   </>
                 )}
 
                 {/* Rutas solo para chofer */}
-                {(rol === "Conductor" || rol === "admin" || rol === "usuario" || rol === "Administrador") && (
+                {(rol === "Conductor" || rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario") && (
                   <>
                     <Route path="/chofer/solicitudes" element={<ChoferFallas usuarioId={usuarioId} />} />
                     <Route path="/chofer/listasolicitudes" element={<ListaSolicitudes usuarioId={usuarioId} />} />
                     <Route path="/Solicitudespendiente" element={<ListaSolicitudesEdicion />} />
                     <Route path="/chat_chofer" element={<Mensajeschofer />} />
-                    <Route path="/Datoschfer" element={<DatosChoferUnidad />} />
+                    <Route path="/Datoschfer" element={<DocumentacionUnidad />} />
                     <Route path="/Cambiarcontra" element={<CambiarContraseña usuarioId={usuarioId} />} />
                     <Route path="/Alertas" element={<Alertas />} />
+                    <Route path="/Documento_vehiculo" element={<Datosunidad />} />
        
 
 

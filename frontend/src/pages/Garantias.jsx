@@ -195,8 +195,8 @@ const Garantias = () => {
     <th>Aseguradora</th>
     <th>Tipo de Póliza</th>
     <th>No. de Póliza</th>
-    <th>Teléfono Fijo</th>        {/* Nueva columna */}
-    <th>Teléfono Celular</th>     {/* Nueva columna */}
+    <th>Teléfono Fijo</th>       
+    <th>Teléfono Celular</th>    
     <th>URL de Póliza</th>
     <th>Suma Asegurada</th>
     <th>Inicio Vigencia</th>
@@ -215,7 +215,7 @@ const Garantias = () => {
                   <td>{g.aseguradora}</td>
                   <td>{g.tipo_garantia}</td>
                   <td>{g.no_poliza}</td>
-                  <td>{g.telefono_fijo || "—"}</td>        {/* Nuevo */}
+                  <td>{g.telefono_fijo || "—"}</td>     
                   <td>
                     {g.telefono_celular ? (
                       <a 

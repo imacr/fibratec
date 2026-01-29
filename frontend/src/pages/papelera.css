@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* Contenedor principal exclusivo de la Papelera */
+.papelera-container {
+    padding: 25px;
+    font-family: 'Inter', sans-serif;
+    background-color: #f0f2f5;
+    min-height: 100vh;
+}
+
+.papelera-container h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 25px;
+}
+
+/* ---------------- Tabs modernos ---------------- */
+.papelera-container .papelera-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.papelera-container .papelera-tabs button {
+    padding: 12px 24px;
+    border-radius: 20px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #fff;
+    background: #9ca3af; /* gris por defecto */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.papelera-container .papelera-tabs button.active {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+/* Colores por tab */
+.papelera-container .papelera-tabs button.active[data-tab="usuarios"] { background: #10b981; }
+.papelera-container .papelera-tabs button.active[data-tab="unidades"] { background: #3b82f6; }
+.papelera-container .papelera-tabs button.active[data-tab="placas"] { background: #8b5cf6; }
+.papelera-container .papelera-tabs button.active[data-tab="garantias"] { background: #f97316; }
+.papelera-container .papelera-tabs button.active[data-tab="verificaciones"] { background: #ef4444; }
+
+.papelera-container .papelera-tabs button:hover {
+    transform: translateY(-2px);
+    opacity: 0.9;
+}
+
+/* ---------------- Tabla elegante ---------------- */
+.papelera-container .table-wrapper {
+    overflow-x: auto;
+}
+
+.papelera-container .elegant-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+.papelera-container .elegant-table th,
+.papelera-container .elegant-table td {
+    padding: 14px 18px;
+    text-align: left;
+}
+
+.papelera-container .elegant-table th {
+    background-color: #1e40af;
+    color: white;
+    font-weight: 700;
+}
+
+.papelera-container .elegant-table tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.papelera-container .elegant-table tr:hover {
+    background-color: #e0e7ff;
+    transform: scale(1.01);
+    transition: all 0.2s ease;
+}
+
+/* Botón Restaurar */
+.papelera-container .btn-restaurar {
+    background: linear-gradient(90deg, #10b981, #059669);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.papelera-container .btn-restaurar:hover {
+    background: linear-gradient(90deg, #059669, #047857);
+    transform: translateY(-2px);
+}
+
+/* ---------------- Cards móviles ---------------- */
+.papelera-container .papelera-cards {
+    display: none;
+}
+
+@media screen and (max-width: 768px) {
+    .papelera-container .table-wrapper { display: none; }
+    .papelera-container .papelera-cards { display: grid; gap: 16px; }
+
+    .papelera-container .papelera-card {
+        background: #fff;
+        border-radius: 20px;
+        padding: 18px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transition: all 0.3s ease;
+    }
+
+    .papelera-container .papelera-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+    }
+
+    .papelera-container .papelera-card p {
+        margin: 6px 0;
+        font-size: 15px;
+        color: #374151;
+    }
+
+    .papelera-container .papelera-card p strong {
+        color: #111827;
+    }
+
+    .papelera-container .papelera-btn-restaurar {
+        margin-top: 12px;
+        width: 100%;
+        padding: 10px 0;
+        border-radius: 12px;
+        font-weight: 700;
+        background: linear-gradient(90deg, #10b981, #059669);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .papelera-container .papelera-btn-restaurar:hover {
+        background: linear-gradient(90deg, #059669, #047857);
+        transform: translateY(-2px);
+    }
+}

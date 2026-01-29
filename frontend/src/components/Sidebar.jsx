@@ -12,6 +12,8 @@ const Sidebar = () => {
   const [showHistorialSubmenu, setShowHistorialSubmenu] = useState(false);
   const [showChoferSubmenu, setShowChoferSubmenu] = useState(false);
   const [showPanelSubmenu, setShowPanelSubmenu] = useState(false);
+  const [showRefrendoSubmenu, setShowRefrendoSubmenu] = useState(false);
+
 
   const navigate = useNavigate();
   const { pendientes } = useContext(NotificationContext);
@@ -49,25 +51,17 @@ const Sidebar = () => {
         <nav className="sidebar-menu">
 
           {/* === Dashboard === */}
-          {(rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario"  ) && (
             <div className="menu-item">
-              <NavLink
-                to="/"
-                className={({ isActive }) => (isActive ? "active" : "")}
-                onClick={() => toggleSubmenu(showDashboardSubmenu, setShowDashboardSubmenu)}
-              >
-                <i className="fa fa-th-large"></i> Dashboard
-                <i
-                  className={`fa submenu-toggle fa-chevron-${showDashboardSubmenu ? "down" : "right"}`}
-                  style={{ marginLeft: "auto" }}
-                ></i>
-              </NavLink>
+                          <NavLink to="/">
+              <i className="fa-solid fa-table-columns"></i> Dashboard
+            </NavLink>
 
             </div>
           )}
 
           {/* === Solicitudes (admin) === */}
-          {(rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
             <NavLink to="/admin/solicitudes" className={({ isActive }) => (isActive ? "active" : "")}>
               <i className="fa fa-line-chart"></i> Solicitudes
               {pendientes > 0 && <span className="notification-badge">{pendientes}</span>}
@@ -75,19 +69,48 @@ const Sidebar = () => {
           )}
 
           {/* === Unidades y Usuarios === */}
-          {(rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
             <>
+            <NavLink to="/panel_unidad" className={({ isActive }) => (isActive ? "active" : "")}>
+                <i className="fa-solid fa-file-circle-check"></i>  Cotejo de documentos
+              </NavLink>
               <NavLink to="/unidades" className={({ isActive }) => (isActive ? "active" : "")}>
                 <i className="fa fa-car"></i> Unidades
               </NavLink>
               <NavLink to="/placas" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa-solid fa-clipboard-check"></i> Placas
+                 <i className="fa-solid fa-id-card"></i> Placas
               </NavLink>
-              <NavLink to="/registropago" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa-solid fa-clipboard-check"></i> Tenencia y Refrendo
-              </NavLink>
+
+              <div className="menu-item">
+
+
+                <NavLink
+                  to="/dashrefendo"
+                  className={({ isActive }) => (isActive ? "active" : "")}
+                  onClick={() => toggleSubmenu(showRefrendoSubmenu, setShowRefrendoSubmenu)}
+                >
+                  <i className="fa-solid fa-file-invoice-dollar"></i> Panel de Refrendo 
+                  <i
+                    className={`fa submenu-toggle fa-chevron-${showRefrendoSubmenu ? "down" : "right"}`}
+                    style={{ marginLeft: "auto" }}
+                  ></i>
+                </NavLink>
+                {showRefrendoSubmenu && (
+                  <div className="submenu">
+                    
+                    <NavLink to="/registropago" className={({ isActive }) => (isActive ? "active" : "")}>
+                      <i className="fa-solid fa-file-invoice"></i>  Tenencia y Refrendo
+                    </NavLink>
+                    
+                  </div>
+                )}
+              </div>
+
+              
+
+
                 <NavLink to="/Asignaciones" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa-solid fa-clipboard-check"></i> Asignaciones
+                <i className="fa-solid fa-link"></i> Asignaciones
               </NavLink>
               
               <NavLink to="/garantias" className={({ isActive }) => (isActive ? "active" : "")}>
@@ -99,26 +122,29 @@ const Sidebar = () => {
               
 
               <NavLink to="/Calendario" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa-solid fa-clipboard-check"></i> Calendario
+                <i className="fa-solid fa-calendar-days"></i> Calendario
               </NavLink>
             </>
      
           )}
-          {(rol === "Administrador" ) && (
+          {(rol === "Administrador" || rol === "Superusuario"  ) && (
             <>
-            <NavLink to="/usuarios" className={({ isActive }) => (isActive ? "active" : "")}>
-                <i className="fa fa-users"></i> Usuarios
+            <NavLink to="/usuarios">
+                <i className="fa-solid fa-users"></i> Usuarios
+              </NavLink>
+              <NavLink to="/conductores">
+                <i className="fa-solid fa-id-badge"></i> Conductores
               </NavLink>
              </>
      
           )}
-        {(rol === "Administrador" || rol === "usuario") && (
+        {(rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
             <>
               <NavLink to="/Empresas" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-file-text"></i> Empresa
+                      <i className="fa-solid fa-building"></i>  Empresa
               </NavLink>
               <NavLink to="/Sucursales" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-file-text"></i> Sucursales
+                      <i className="fa-solid fa-store"></i> Sucursales
               </NavLink>
 
 
@@ -139,13 +165,13 @@ const Sidebar = () => {
                   <div className="submenu">
                     
                     <NavLink to="/mantenimientos_programado" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-gear"></i> Mantenimientos menores programados
+                      <i className="fa-solid fa-screwdriver-wrench"></i> Mantenimientos menores programados
                     </NavLink>
                     <NavLink to="/mayores" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-gear"></i> Mantenimientos mayores programados
+                      <i className="fa-solid fa-wrench"></i> Mantenimientos mayores programados
                     </NavLink>
                     <NavLink to="/fallasmecanicas" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-car"></i> Fallas Mecánicas
+                       <i className="fa-solid fa-triangle-exclamation"></i> Fallas Mecánicas
                     </NavLink>
                     
                   </div>
@@ -168,16 +194,16 @@ const Sidebar = () => {
                 {showHistorialSubmenu && (
                   <div className="submenu">
                     <NavLink to="/historialverificaciones" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-users"></i> Verificaciones
+                      <i className="fa-solid fa-shield-check"></i> Verificaciones
                     </NavLink>
                     <NavLink to="/fallasmecanicas" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-cogs"></i> Fallas Mecánicas
                     </NavLink>
                     <NavLink to="/Mantenimientos_realizados" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-wrench"></i> Mantenimientos
+                      <i className="fa-solid fa-wrench"></i> Mantenimientos
                     </NavLink>
                     <NavLink to="/HistorialGarantias" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-file-text"></i> Pólizas
+                      <i className="fa-solid fa-file-lines"></i> Pólizas
                     </NavLink>
                     <NavLink to="/historialplacas" className={({ isActive }) => (isActive ? "active" : "")}>
                       <i className="fa fa-file-text"></i> Placas
@@ -186,7 +212,7 @@ const Sidebar = () => {
                       <i className="fa fa-file-text"></i> Refrendo y Tenencia
                     </NavLink>
                     <NavLink to="/Historialasignaciones" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-file-text"></i> Asignaciones
+                      <i className="fa-solid fa-link"></i> Asignaciones
                     </NavLink>
                                        
                   </div>
@@ -195,8 +221,11 @@ const Sidebar = () => {
             </>
           )}
 
-          {(rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Conductor" || rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
             <>
+            <NavLink to="/Datoschfer" className={({ isActive }) => (isActive ? "active" : "")}>
+                <i className="fa-solid fa-folder-open"></i>Documentos del vehiculio
+              </NavLink>
              </>
      
           )}
@@ -204,15 +233,18 @@ const Sidebar = () => {
 
 
           {/* === Acciones Chofer (admin también puede ver) === */}
-          {(rol === "Conductor" || rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Conductor" || rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
+            
             <div className="menu-item">
+              
+
              <NavLink
-              to="/Datoschfer"
+              to="#"
               end
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={() => toggleSubmenu(showChoferSubmenu, setShowChoferSubmenu)}
             >
-              <i className="fa fa-folder-open"></i> Acciones Chofer
+              <i className="fa-solid fa-user-gear"></i> Acciones Chofer
               <i
                 className={`fa submenu-toggle fa-chevron-${showChoferSubmenu ? "down" : "right"}`}
                 style={{ marginLeft: "auto" }}
@@ -224,23 +256,25 @@ const Sidebar = () => {
               {showChoferSubmenu && (
                 <div className="submenu">
                   <NavLink to="/chofer/solicitudes" className={({ isActive }) => (isActive ? "active" : "")}>
-                    <i className="fa fa-users"></i> Solicitud
+                    <i className="fa-solid fa-file-circle-plus"></i> Solicitud
                   </NavLink>
                   <NavLink to="Solicitudespendiente" className={({ isActive }) => (isActive ? "active" : "")}>
-                    <i className="fa fa-cogs"></i> Solicitudes realizadas
+                     <i className="fa-solid fa-clock-rotate-left"></i> Solicitudes realizadas
                   </NavLink>
                   <NavLink to="/chat_chofer" className={({ isActive }) => (isActive ? "active" : "")}>
-                    <i className="fa fa-cogs"></i> Chats
+                     <i className="fa-solid fa-comments"></i> Chats
                     {mensajesNuevos > 0 && <span className="notification-badge">{mensajesNuevos}</span>}
 
                   </NavLink>
+
+
 
                 </div>
               )}
             </div>
           )}
           {/* === Acciones Chofer (admin también puede ver) === */}
-          {(rol === "Administrador" || rol === "usuario") && (
+          {(rol === "Administrador" || rol === "usuario" || rol === "Contabilidad" || rol === "Superusuario" ) && (
             <div className="menu-item">
              <NavLink
               to="#"
@@ -248,7 +282,7 @@ const Sidebar = () => {
               className={({ isActive }) => (isActive ? "active" : "")}
               onClick={() => toggleSubmenu(showPanelSubmenu, setShowPanelSubmenu)}
             >
-              <i className="fa fa-folder-open"></i> Panel de configuracion
+              <i className="fa-solid fa-sliders"></i> Panel de configuracion
               <i
                 className={`fa submenu-toggle fa-chevron-${showPanelSubmenu ? "down" : "right"}`}
                 style={{ marginLeft: "auto" }}
@@ -262,18 +296,24 @@ const Sidebar = () => {
                       <i className="fa fa-wrench"></i> Tipos de mantenimientos
                     </NavLink>
                     <NavLink to="/frecuencia_mantenimiento" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-history"></i> Frecuencia por marca
+                      <i className="fa-solid fa-rotate"></i>  Frecuencia por marca
                     </NavLink>
                     <NavLink to="/piezas" className={({ isActive }) => (isActive ? "active" : "")}>
-                      <i className="fa fa-history"></i> Tipos de fallas
+                       <i className="fa-solid fa-triangle-exclamation"></i> Tipos de fallas
                     </NavLink>
-                    <NavLink to="/botones" className={({ isActive }) => (isActive ? "active" : "")}>
-                    <i className="fa-solid fa-clipboard-check"></i> Pruebas
+                  {(rol === "Administrador" || rol === "usuario") && (
+            <>
+            <NavLink to="/papelera" className={({ isActive }) => (isActive ? "active" : "")}>
+                     <i className="fa-solid fa-trash"></i> Papelera
                   </NavLink>
-            
+             </>
+     
+          )}
+
 
                 </div>
               )}
+
             </div>
           )}
         </nav>

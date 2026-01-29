@@ -285,7 +285,13 @@ const handleEliminarSolicitud = async (id_solicitud) => {
             {currentItems.map((s, index) => (
               <tr key={s.id_solicitud} className={index % 2 === 0 ? "bg-gray-100" : "bg-white"}>
                 <td>{s.id_solicitud}</td>
-                <td>{s.chofer?.nombre_chofer || "Sin asignar"}</td>
+                <td>
+                  {s.chofer?.nombre_chofer !== "No especificado"
+                    ? s.chofer?.nombre_chofer
+                    : s.chofer?.nombre_usuario !== "No especificado"
+                      ? s.chofer?.nombre_usuario
+                      : "Sin asignar"}
+                </td>
                 <td>{s.cve} {s.marca_auto} {s.unidad}</td>
                 <td>{s.pieza}</td>
                 <td>{s.tipo_servicio}</td>

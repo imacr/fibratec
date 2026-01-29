@@ -72,8 +72,8 @@ const Login = ({ onLogin }) => {
                     <div className={styles.inputContainer}>
                         <i className={`fa-solid fa-user ${styles.icon}`}></i>
                         <input
-                            type="text"
-                            placeholder="Usuario"
+                            type="email"
+                            placeholder="Correo"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             required

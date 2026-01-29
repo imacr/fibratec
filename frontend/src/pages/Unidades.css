@@ -451,6 +451,81 @@
   overflow-y: auto;
 }
 
+.search-box {
+  display: flex;
+  align-items: center;
+  width: 460px;
+  height: 44px;
+  background-color: #f9fafb;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 14px;
+  margin-bottom: 18px;
+}
+
+.search-box:hover {
+  border-color: #94a3b8;
+}
+
+.search-box:focus-within {
+  background-color: #ffffff;
+  border-color: #2563eb;
+}
+
+.search-box i {
+  font-size: 17px;
+  color: #475569;
+  margin-right: 10px;
+}
+
+.search-box input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.search-box input::placeholder {
+  color: #64748b;
+}
+
+
+.imagenes-vehiculo .form-group {
+  border: 2px dashed #cfcfcf;
+  padding: 10px;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.imagenes-vehiculo .form-group.seleccionado {
+  border-color: #198754;
+  background-color: #e9f7ef;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-preview {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #0d6efd;
+  background: #fff;
+  color: #0d6efd;
+  cursor: pointer;
+}
+
+.btn-preview:hover {
+  background: #0d6efd;
+  color: #fff;
+}
+
 
 /* Media Query para móvil: Oculta la tabla, muestra las tarjetas */
 @media (max-width: 768px) { /* Cambiado de 500px a 768px para una mejor adaptabilidad */
@@ -467,3 +542,4 @@
 .ocultar {
   display: none;
 }
+

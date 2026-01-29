@@ -23,6 +23,12 @@ export default function Alertas() {
     case "verificacion":
       navigate("/verificaciones");
       break;
+    case "mantenimiento":
+      navigate("/verificaciones");
+      break;
+    case "garantia_vencimiento":
+      navigate("/garantias");
+      break;
     default:
       navigate("/alertas");
       break;

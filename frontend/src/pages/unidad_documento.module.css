@@ -1,0 +1,284 @@
+.unidadesContainer {
+  --primary: #6366f1;
+  --secondary: #a855f7;
+  --bg-app: #f1f5f9;
+  --glass: rgba(255, 255, 255, 0.8);
+  --text-dark: #1e293b;
+  --text-light: #64748b;
+  
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text-dark);
+  background: radial-gradient(at top left, #eef2ff, #f1f5f9);
+  min-height: 100vh;
+}
+
+.mainTitle {
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 40px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.selectPremium {
+  width: 100%;
+  max-width: 600px;
+  display: block;
+  margin: 0 auto 50px;
+  padding: 15px 20px;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.selectPremium:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 25px;
+  animation: fadeIn 0.6s ease-out;
+}
+
+/* Tarjeta Estilo Glass */
+.customCard {
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: transform 0.3s ease;
+}
+
+.customCard:hover {
+  transform: translateY(-5px);
+}
+
+/* Botones con estilo moderno */
+.btnAction {
+  background: white;
+  color: var(--text-dark);
+  border: 1px solid #e2e8f0;
+  padding: 10px 15px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.btnAction:hover {
+  background: #f8fafc;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btnPrimary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+  color: white !important;
+  border: none !important;
+}
+
+/* Grid de fotos compacto */
+.gridFotos {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.datoItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.badgeMissing {
+  color: #ef4444;
+  background: #fef2f2;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.historialBox {
+  margin-top: 15px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+}
+
+.cardSection {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Más separación real entre tarjetas */
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 45px;
+}
+
+/* Línea sutil para separar visualmente */
+.customCard {
+  position: relative;
+}
+
+.customCard::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(99,102,241,0.35),
+    transparent
+  );
+}
+
+
+/* Documentacion.module.css */
+.unidadesContainer {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.cardsContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.infoCard {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 0.8rem;
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.infoCard h3 {
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.datoItem {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.gridFotos {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.3rem;
+  padding: 0.2rem 0;
+}
+
+.gridFotos button {
+  flex: 0 0 auto;
+  width: 60px;
+  height: 60px;
+  font-size: 0.7rem;
+  padding: 0.2rem;
+}
+
+.historialBoxCompact {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0.3rem;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85rem;
+}
+
+.btnAction {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.badgeMissing {
+  color: #999;
+  font-size: 0.8rem;
+}
+
+/* Contenedor vertical para botones grandes */
+.gridFotosVertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem; /* espacio entre botones */
+  padding: 0.5rem 0;
+}
+
+/* Botones grandes */
+.btnFotoLarge {
+  width: 100%;
+  max-width: 200px;
+  height: 50px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Botones grandes para documentos faltantes */
+.btnFotoDisabledLarge {
+  width: 100%;
+  max-width: 200px;
+  height: 50px;
+  font-size: 1rem;
+  color: #999;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background-color: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: not-allowed;
+}
+
+
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .panelGrid { grid-template-columns: 1fr; }
+  .gridFotos { grid-template-columns: 1fr; }
+}

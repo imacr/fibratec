@@ -7,6 +7,22 @@ export default function Historiales() {
   const [modalUrl, setModalUrl] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
   const [itemsPorPagina, setItemsPorPagina] = useState(5); // Default: 5 items por página
+  const [filtroBusqueda, setFiltroBusqueda] = useState("");
+  
+  const historialesFiltrados = historiales.filter(h => {
+  if (!filtroBusqueda) return true;
+
+  const texto = filtroBusqueda.toLowerCase();
+
+  return (
+    h.cve?.toLowerCase().includes(texto) ||
+    h.vehiculo_modelo?.toLowerCase().includes(texto) ||
+    h.tipo_pago?.toLowerCase().includes(texto) ||
+    h.tipo_movimiento?.toLowerCase().includes(texto) ||
+    h.usuario_registro?.toLowerCase().includes(texto) ||
+    h.fecha_pago?.toLowerCase().includes(texto)
+  );
+});
 
   useEffect(() => {
     fetch(`${API_URL}/historiales`)
@@ -22,20 +38,41 @@ export default function Historiales() {
   const cerrarModal = () => setModalUrl(null);
 
   // Paginación
-  const indexUltimo = paginaActual * itemsPorPagina;
-  const indexPrimero = indexUltimo - itemsPorPagina;
-  const currentItems = itemsPorPagina === "all" ? historiales : historiales.slice(indexPrimero, indexUltimo);
-  const totalPaginas = Math.ceil(historiales.length / (itemsPorPagina === "all" ? historiales.length : itemsPorPagina));
+const indexUltimo = paginaActual * itemsPorPagina;
+const indexPrimero = indexUltimo - itemsPorPagina;
+
+const currentItems =
+  itemsPorPagina === "all"
+    ? historialesFiltrados
+    : historialesFiltrados.slice(indexPrimero, indexUltimo);
+
+const totalPaginas = Math.ceil(
+  historialesFiltrados.length /
+  (itemsPorPagina === "all" ? historialesFiltrados.length : itemsPorPagina)
+);
 
   return (
     <div className="unidades-container">
       <h1>Historial de Refrendo y Tenencia</h1>
       
-          <div style={{ marginTop: "10px" }}>
+          <div style={{ margin: "10px 0", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="Buscar por CVE, vehículo, tipo, usuario, movimiento..."
+            value={filtroBusqueda}
+            onChange={e => {
+              setFiltroBusqueda(e.target.value);
+              setPaginaActual(1);
+            }}
+          />
+
+          <div>
             <label>Mostrar: </label>
             <select
               value={itemsPorPagina}
-              onChange={e => setItemsPorPagina(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+              onChange={e =>
+                setItemsPorPagina(e.target.value === "all" ? "all" : parseInt(e.target.value))
+              }
             >
               <option value={5}>5</option>
               <option value={10}>10</option>
@@ -43,6 +80,8 @@ export default function Historiales() {
               <option value="all">Todos</option>
             </select>
           </div>
+        </div>
+
       {/* Tabla */}
       <div className="table-wrapper">
         <table className="elegant-table">
@@ -56,10 +95,10 @@ export default function Historiales() {
               <th>Monto Refrendo</th>
               <th>Monto Tenencia</th>
               <th>Fecha de Pago</th>
-              <th>Factura</th>
+              <th>Comprobante pago</th>
+              <th>Comprobante generado</th>
               <th>Observaciones</th>
               <th>Tipo Movimiento</th>
-              <th>Usuario</th>
               <th>Fecha Registro</th>
             </tr>
           </thead>
@@ -86,9 +125,19 @@ export default function Historiales() {
                     </button>
                   ) : "-"}
                 </td>
+                <td>
+                  {h.url_comprobante ? (
+                    <button
+                      onClick={() => abrirModal(h.url_comprobante)}
+                      className="btn btn-outline-danger btn-sm"
+                      title="Ver factura"
+                    >
+                      Abrir comprobante
+                    </button>
+                  ) : "-"}
+                </td>
                 <td>{h.observaciones}</td>
                 <td>{h.tipo_movimiento}</td>
-                <td>{h.usuario_registro}</td>
                 <td>{h.fecha_registro}</td>
               </tr>
             ))}

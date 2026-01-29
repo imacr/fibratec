@@ -10,6 +10,8 @@ import seces from '../assets/image.png';
 import { BASE_URL } from "../config"; // Ajusta la ruta según la ubicación del archivo
 
 const Unidades = () => {
+  const [fileModalData, setFileModalData] = useState(null);
+
   const [unidades, setUnidades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,13 +20,18 @@ const Unidades = () => {
   const [unidadToEdit, setUnidadToEdit] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPageOptions = [5, 10, 20];
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(5);  
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const MySwal = withReactContent(Swal);
   const [pdfFrontal, setPdfFrontal] = useState(null);
   const [pdfTrasero, setPdfTrasero] = useState(null);
   const [agregarPlacas, setAgregarPlacas] = useState(false);
   const [fotoUnidad, setFotoUnidad] = useState(null);
+  const [fotoFrontal, setFotoFrontal] = useState(null);
+  const [fotoTrasera, setFotoTrasera] = useState(null);
+  const [fotoLateralizq, setFotoLateralizq] = useState(null);
+  const [fotoLateralder, setFotoLateralder] = useState(null);
+  const [fotoTablero, setFotoTablero] = useState(null);
   const [pdfFactura, setPdfFactura] = useState(null);
   const [empresas, setEmpresas] = useState([]);
   const [sucursales, setSucursales] = useState([]);
@@ -37,8 +44,27 @@ const Unidades = () => {
     const [historial, setHistorial] = useState([]);
   const [fileModalUrl, setFileModalUrl] = useState(null);
   const [search, setSearch] = useState("");
+  const [imagenesVehiculo, setImagenesVehiculo] = useState(null);
+  const [modalImagenesUnidad, setModalImagenesUnidad] = useState({
+  abierta: false,
+  urls: []
+});
+const [archivoModalUrl, setArchivoModalUrl] = useState(null);
+
+
 // "edit" | "add" | "details"
 
+  const unidadesFiltradas = unidades.filter(u => {
+    const texto = search.toLowerCase();
+
+    return (
+      u.cve?.toLowerCase().includes(texto) ||
+      u.marca?.toLowerCase().includes(texto) ||
+      u.version?.toLowerCase().includes(texto) ||
+      u.niv?.toLowerCase().includes(texto) ||
+      u.chofer_asignado?.toLowerCase().includes(texto)
+    );
+  });
 
 // "add", "edit", "details"
 
@@ -155,8 +181,9 @@ const [nuevaUnidad, setNuevaUnidad] = useState({
 
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentUnidades = unidades.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(unidades.length / itemsPerPage);
+  const currentUnidades = unidadesFiltradas.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(unidadesFiltradas.length / itemsPerPage);
+
 
 
   
@@ -254,6 +281,11 @@ const handleUpdateUnidad = async (e) => {
     // =============================
     if (fotoUnidad) formData.append("foto_unidad", fotoUnidad);
     if (pdfFactura) formData.append("pdf_factura", pdfFactura);
+    if (fotoFrontal) formData.append("foto_frontal", fotoFrontal);
+    if (fotoTrasera) formData.append("foto_trasera", fotoTrasera);
+    if (fotoLateralizq) formData.append("foto_lateral_izq", fotoLateralizq);
+    if (fotoLateralder) formData.append("foto_lateral_der", fotoLateralder);
+    if (fotoTablero) formData.append("foto_tablero_nivel", fotoTablero);
     if (agregarPlacas) {
       if (pdfFrontal) formData.append("pdf_frontal", pdfFrontal);
       if (pdfTrasero) formData.append("pdf_trasero", pdfTrasero);
@@ -261,13 +293,7 @@ const handleUpdateUnidad = async (e) => {
       if (comprobantePago) formData.append("comprobante_pago", comprobantePago);
     }
 
-    // =============================
-    // Debug: revisar datos antes de enviar
-    // =============================
-    console.log("=== FormData a enviar ===");
-    for (let pair of formData.entries()) {
-      console.log(pair[0], ":", pair[1]);
-    }
+
 
     // =============================
     // Petición PUT al backend
@@ -402,6 +428,12 @@ const handleAgregarUnidad = async (e) => {
     // Archivos opcionales
     if (fotoUnidad) formData.append("foto_unidad", fotoUnidad);
     if (pdfFactura) formData.append("pdf_factura", pdfFactura);
+    if (fotoFrontal) formData.append("foto_frontal", fotoFrontal);
+    if (fotoTrasera) formData.append("foto_trasera", fotoTrasera);
+    if (fotoLateralizq) formData.append("foto_lateral_izq", fotoLateralizq);
+    if (fotoLateralder) formData.append("foto_lateral_der", fotoLateralder);
+    if (fotoTablero) formData.append("foto_tablero", fotoTablero);
+
     if (agregarPlacas) {
       if (nuevaUnidad.placa) formData.append("placa", nuevaUnidad.placa);
       if (nuevaUnidad.folio) formData.append("folio", nuevaUnidad.folio);
@@ -473,6 +505,11 @@ const handleAgregarUnidad = async (e) => {
     });
 
     setFotoUnidad(null);
+    setFotoFrontal(null);
+    setFotoTrasera(null);
+    setFotoLateralizq(null);
+    setFotoLateralder(null);
+    setFotoTablero(null);
     setPdfFactura(null);
     setPdfFrontal(null);
     setPdfTrasero(null);
@@ -522,6 +559,21 @@ const handleMasDatosChange = (field, value) => {
               ))}
             </select>
           </label>
+         <div className="search-box">
+          <i className="search-icon">🔍</i>
+          <input
+            type="text"
+            placeholder="Buscar por CVE, marca, versión, NIV o chofer"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
+
+
+
         <button  className="btn-open-modal btn-registrar-garantia" onClick={() => {
   setModalMode("add");
   setNuevaUnidad({});
@@ -534,12 +586,14 @@ const handleMasDatosChange = (field, value) => {
         </button>
       </div>
 
+
+
       {/* Tabla para pantallas grandes */}
       <div className="table-wrapper">
         <table className="elegant-table">
           <thead>
             <tr>
-              <th textAlign="center">CVE</th>
+              <th>CVE</th>
               <th>Chofer Asignado</th>
               <th>Marca</th>
               <th>Vehículo</th>
@@ -547,7 +601,7 @@ const handleMasDatosChange = (field, value) => {
               <th >NIV</th>
               <th>Placa</th>
               <th>Fecha Adquisición</th>
-              <th>Vencimiento Tarjeta</th>
+              <th>Imangenes Auto</th>
               <th>Factura</th>
               <th>Engomado</th>
               <th>Acciones</th>
@@ -565,7 +619,43 @@ const handleMasDatosChange = (field, value) => {
                 <td>{u.placa}</td>
                 <td>{u.fecha_adquisicion}</td>
                 
-                <td>{u.fecha_vencimiento_tarjeta}</td>
+                <td>
+                  {(u.foto_frontal ||
+                    u.foto_trasera ||
+                    u.foto_lateral_izq ||
+                    u.foto_lateral_der ||
+                    u.foto_tablero_nivel) ? (
+
+                    <button
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={() =>
+                        setModalImagenesUnidad({
+                          abierta: true,
+                          imagenes: [
+                            { label: "Vista frontal", url: u.foto_frontal },
+                            { label: "Vista trasera", url: u.foto_trasera },
+                            { label: "Lateral izquierdo", url: u.foto_lateral_izq },
+                            { label: "Lateral derecho", url: u.foto_lateral_der },
+                            { label: "Tablero / Nivel", url: u.foto_tablero_nivel }
+                          ]
+                            .filter(i => i.url)
+                            .map(i => ({
+                              ...i,
+                              url: `${BASE_URL}/${i.url}`
+                            }))
+                        })
+                      }
+                    >
+                      Ver imágenes
+                    </button>
+
+                  ) : (
+                    "Sin imágenes"
+                  )}
+                </td>
+
+              
+
                 <td> {u.url_factura ? (
                           <button className="btn btn-outline-danger btn-sm" onClick={() => setFileModalUrl(`${BASE_URL}/${u.url_factura}`)}>Ver</button>
                         ) : "N/A"}</td>
@@ -601,6 +691,10 @@ const handleMasDatosChange = (field, value) => {
                     {/* Usé 'icon-details' para la acción de ver más */}
                     <i className="fa-solid fa-plus-minus icon-details"></i>
                     </button>
+
+
+
+
                 </div>
                 </td>
               </tr>
@@ -661,9 +755,9 @@ const handleMasDatosChange = (field, value) => {
 
       {/* Paginación */}
       <div className="pagination">
-        <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}><i class="fa-solid fa-arrow-left"></i></button>
+        <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}><i className="fa-solid fa-arrow-left"></i></button>
         <span>Página {currentPage} de {totalPages}</span>
-        <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}><i class="fa-solid fa-arrow-right"></i></button>
+        <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}><i className="fa-solid fa-arrow-right"></i></button>
       </div>
 
 
@@ -955,6 +1049,144 @@ const handleMasDatosChange = (field, value) => {
 
   </div>
 </div>
+
+  {/* ============================= */}
+  {/* DATOS GPS */}
+  {/* ============================= */}
+<h4>Fotos de la unidad</h4>
+
+<div className="form-row">
+
+  {/* VISTA FRONTAL */}
+  <div className="form-group">
+    <label>Vista frontal</label>
+    <div className="file-row">
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setFotoFrontal(e.target.files[0])}
+      />
+      {unidadToEdit.foto_frontal && (
+        <button
+          type="button"
+          className="btn-preview"
+          onClick={() =>
+            setFileModalData({
+              url: `${BASE_URL}/${unidadToEdit.foto_frontal}`
+            })
+          }
+        >
+          Ver actual
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* VISTA TRASERA */}
+  <div className="form-group">
+    <label>Vista trasera</label>
+    <div className="file-row">
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setFotoTrasera(e.target.files[0])}
+      />
+      {unidadToEdit.foto_trasera && (
+        <button
+          type="button"
+          className="btn-preview"
+          onClick={() =>
+            setFileModalData({
+              url: `${BASE_URL}/${unidadToEdit.foto_trasera}`
+            })
+          }
+        >
+          Ver actual
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* LATERAL IZQUIERDO */}
+  <div className="form-group">
+    <label>Lateral izquierdo</label>
+    <div className="file-row">
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setFotoLateralizq(e.target.files[0])}
+      />
+      {unidadToEdit.foto_lateral_izq && (
+        <button
+          type="button"
+          className="btn-preview"
+          onClick={() =>
+            setFileModalData({
+              url: `${BASE_URL}/${unidadToEdit.foto_lateral_izq}`
+            })
+          }
+        >
+          Ver actual
+        </button>
+      )}
+    </div>
+  </div>
+
+
+</div>
+  <div className="form-row">
+
+  {/* LATERAL DERECHO */}
+  <div className="form-group">
+    <label>Lateral derecho</label>
+    <div className="file-row">
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setFotoLateralder(e.target.files[0])}
+      />
+      {unidadToEdit.foto_lateral_der && (
+        <button
+          type="button"
+          className="btn-preview"
+          onClick={() =>
+            setFileModalData({
+              url: `${BASE_URL}/${unidadToEdit.foto_lateral_der}`
+            })
+          }
+        >
+          Ver actual
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* TABLERO / NIVEL */}
+  <div className="form-group">
+    <label>Tablero / Nivel</label>
+    <div className="file-row">
+      <input
+        type="file"
+        accept="image/*"
+        onChange={e => setFotoTablero(e.target.files[0])}
+      />
+      {unidadToEdit.foto_tablero_nivel && (
+        <button
+          type="button"
+          className="btn-preview"
+          onClick={() =>
+            setFileModalData({
+              url: `${BASE_URL}/${unidadToEdit.foto_tablero_nivel}`
+            })
+          }
+        >
+          Ver actual
+        </button>
+      )}
+    </div>
+  </div>
+   </div>
+
   {/* ============================= */}
   {/* DATOS GPS */}
   {/* ============================= */}
@@ -1274,7 +1506,7 @@ const handleMasDatosChange = (field, value) => {
       <input type="file" accept="image/*" onChange={(e) => setFotoUnidad(e.target.files[0])} />
     </div>
     <div className="form-group">
-      <label>Factura (PDF)</label>
+      <label>Factura (PDF, imagen)</label>
       <input type="file" accept="image/*,application/pdf" onChange={(e) => setPdfFactura(e.target.files[0])} />
     </div>
     <div className="form-group">
@@ -1327,6 +1559,51 @@ const handleMasDatosChange = (field, value) => {
 
       </div>
   
+
+<div className="imagenes-vehiculo">
+
+  <h4>Imagenes del vehiculo</h4>
+  {/* ========================= */}
+  <div className="form-row">
+
+    <div className={`form-group ${fotoFrontal ? "seleccionado" : ""}`}>
+      <label>Foto frontal</label>
+      <input type="file" accept="image/*"
+        onChange={(e) => setFotoFrontal(e.target.files[0])} />
+    </div>
+
+    <div className={`form-group ${fotoTrasera ? "seleccionado" : ""}`}>
+      <label>Foto trasera</label>
+      <input type="file" accept="image/*"
+        onChange={(e) => setFotoTrasera(e.target.files[0])} />
+    </div>
+
+    <div className={`form-group ${fotoLateralizq ? "seleccionado" : ""}`}>
+      <label>Foto lateral izquierda</label>
+      <input type="file" accept="image/*"
+        onChange={(e) => setFotoLateralizq(e.target.files[0])} />
+    </div>
+
+  </div>
+
+  <div className="form-row">
+
+    <div className={`form-group ${fotoLateralder ? "seleccionado" : ""}`}>
+      <label>Foto lateral derecha</label>
+      <input type="file" accept="image/*"
+        onChange={(e) => setFotoLateralder(e.target.files[0])} />
+    </div>
+
+    <div className={`form-group ${fotoTablero ? "seleccionado" : ""}`}>
+      <label>Foto tablero niv</label>
+      <input type="file" accept="image/*"
+        onChange={(e) => setFotoTablero(e.target.files[0])} />
+    </div>
+
+  </div>
+
+</div>
+
 
   {/* ========================= */}
   {/* GPS */}
@@ -1480,7 +1757,73 @@ const handleMasDatosChange = (field, value) => {
 
 {fileModalUrl && <ModalFile url={fileModalUrl} onClose={() => setFileModalUrl(null)} />}
 
+{fileModalUrl && (
+  <ModalFile
+    url={fileModalUrl}
+    onClose={() => setFileModalUrl(null)}
+  />
+)}
+{archivoModalUrl && (
+  <ModalFile
+    url={archivoModalUrl}
+    onClose={() => setArchivoModalUrl(null)}
+  />
+)}
+
+{modalImagenesUnidad.abierta && (
+  <Modal onClose={() => setModalImagenesUnidad({ abierta: false, imagenes: [] })}>
+    <h2>Imágenes del vehículo</h2>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+        gap: "15px",
+        marginTop: "15px"
+      }}
+    >
+      {modalImagenesUnidad.imagenes.map((img, idx) => (
+        <div
+          key={idx}
+          onClick={() => setArchivoModalUrl(img.url)}
+          style={{
+            cursor: "pointer",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            padding: "8px",
+            textAlign: "center"
+          }}
+        >
+          <img
+            src={img.url}
+            alt={img.label}
+            style={{
+              width: "100%",
+              height: "120px",
+              objectFit: "cover",
+              borderRadius: "4px"
+            }}
+          />
+          <div style={{ marginTop: "6px", fontSize: "0.85rem", fontWeight: "bold" }}>
+            {img.label}
+          </div>
+        </div>
+      ))}
     </div>
+  </Modal>
+)}
+{fileModalData && (
+  <ModalFile
+    url={fileModalData.url}
+    onClose={() => setFileModalData(null)}
+  />
+)}
+
+
+
+
+    </div>
+    
   );
 };
 
